@@ -14,6 +14,7 @@
     "@supabase/supabase-js": "^2.47.6",
     "@taskade/mcp-openapi-codegen": "^0.0.1",
     "bcryptjs": "^3.0.3",
+    "openai": "^4.77.0",
     "lucide-react": "^0.468.0",
     "next": "16.0.1",
     "openapi-types": "^12.1.3",
