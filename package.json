@@ -12,7 +12,12 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "next": "16.0.1",
-    "lucide-react": "^0.468.0"
+    "lucide-react": "^0.468.0",
+    "@readme/openapi-parser": "^4.0.0",
+    "@taskade/mcp-openapi-codegen": "^0.0.1",
+    "openapi-types": "^12.1.3",
+    "yaml": "^2.7.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "babel-plugin-react-compiler": "1.0.0",
