@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { createToolBlueprint, listToolBlueprints } from "@/lib/data/tool-blueprints";
+import type { ToolDraft } from "@/lib/types/tooling";
 
 const PayloadSchema = z.object({
   source: z.string().min(1, "OpenAPI source is required."),
@@ -12,12 +13,34 @@ const PayloadSchema = z.object({
         name: z.string(),
         description: z.string(),
         summary: z.string().optional(),
-        method: z.string(),
+        method: z.enum(["get", "put", "post", "delete", "options", "head", "patch", "trace"]),
         path: z.string(),
         tags: z.array(z.string()),
         inputSchema: z.unknown(),
         outputSchema: z.unknown().optional(),
         security: z.array(z.record(z.string(), z.any())).optional(),
+        httpConfig: z
+          .object({
+            baseUrl: z.string().optional(),
+            parameters: z
+              .array(
+                z.object({
+                  name: z.string(),
+                  in: z.enum(["query", "path", "header"]),
+                  required: z.boolean(),
+                }),
+              )
+              .optional(),
+            requestBody: z
+              .object({
+                propertyName: z.string(),
+                contentType: z.string().optional(),
+                required: z.boolean(),
+              })
+              .optional(),
+            responseContentType: z.string().optional(),
+          })
+          .optional(),
       }),
     )
     .min(1, "At least one tool is required."),
@@ -39,7 +62,23 @@ export async function POST(req: NextRequest) {
     const json = await req.json();
     const payload = PayloadSchema.parse(json);
 
-    const result = await createToolBlueprint(payload);
+    const normalizedTools = payload.tools.map(
+      (tool) =>
+        ({
+          ...tool,
+          httpConfig: tool.httpConfig
+            ? {
+                ...tool.httpConfig,
+                parameters: tool.httpConfig.parameters ?? [],
+              }
+            : undefined,
+        }) as Omit<ToolDraft, "rawOperation">,
+    );
+
+    const result = await createToolBlueprint({
+      ...payload,
+      tools: normalizedTools,
+    });
 
     return NextResponse.json({ id: result.id }, { status: 201 });
   } catch (error) {

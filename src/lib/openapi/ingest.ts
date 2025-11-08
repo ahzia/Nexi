@@ -52,7 +52,7 @@ async function loadDocument(options: IngestOpenApiOptions): Promise<{ document: 
     initial = parseSource(options.source);
   }
 
-  const dereferenced = (await dereference(initial as Record<string, unknown>)) as OpenAPIDocument;
+  const dereferenced = (await dereference(initial as any)) as OpenAPIDocument;
   return { document: dereferenced, errors };
 }
 

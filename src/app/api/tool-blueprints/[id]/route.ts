@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getToolBlueprint, updateToolBlueprint } from "@/lib/data/tool-blueprints";
+import type { ToolDraft } from "@/lib/types/tooling";
 
 const PatchSchema = z.object({
   label: z.string().optional(),
@@ -12,12 +13,34 @@ const PatchSchema = z.object({
         name: z.string(),
         description: z.string(),
         summary: z.string().optional(),
-        method: z.string(),
+        method: z.enum(["get", "put", "post", "delete", "options", "head", "patch", "trace"]),
         path: z.string(),
         tags: z.array(z.string()),
         inputSchema: z.unknown(),
         outputSchema: z.unknown().optional(),
         security: z.array(z.record(z.string(), z.any())).optional(),
+        httpConfig: z
+          .object({
+            baseUrl: z.string().optional(),
+            parameters: z
+              .array(
+                z.object({
+                  name: z.string(),
+                  in: z.enum(["query", "path", "header"]),
+                  required: z.boolean(),
+                }),
+              )
+              .optional(),
+            requestBody: z
+              .object({
+                propertyName: z.string(),
+                contentType: z.string().optional(),
+                required: z.boolean(),
+              })
+              .optional(),
+            responseContentType: z.string().optional(),
+          })
+          .optional(),
       }),
     )
     .optional(),
@@ -48,10 +71,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const json = await req.json();
     const payload = PatchSchema.parse(json);
 
+    const normalizedTools = payload.tools
+      ? (payload.tools.map((tool) => ({
+          ...tool,
+          method: tool.method,
+          httpConfig: tool.httpConfig
+            ? {
+                ...tool.httpConfig,
+                parameters: tool.httpConfig.parameters ?? [],
+              }
+            : undefined,
+        })) as Array<Omit<ToolDraft, "rawOperation">>)
+      : undefined;
+
     const result = await updateToolBlueprint({
       id,
       label: payload.label,
-      tools: payload.tools,
+      tools: normalizedTools,
       warnings: payload.warnings,
     });
 
