@@ -15,15 +15,71 @@ interface JsonRpcRequest {
   params?: Record<string, unknown>;
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const supabase = getSupabaseAdminClient();
+interface McpInstanceRecord {
+  id: string;
+  slug: string;
+  display_name: string | null;
+  api_key_hash: string | null;
+  capabilities: unknown;
+  discovery_payload: unknown;
+}
 
-  const { data: instance, error: instanceError } = await supabase
+async function loadInstance(slug: string) {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
     .from("mcp_instances")
     .select("id, slug, display_name, api_key_hash, capabilities, discovery_payload")
     .eq("slug", slug)
     .maybeSingle();
+  return { data: data as McpInstanceRecord | null, error, supabase } as const;
+}
+
+export async function HEAD(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const { data, error } = await loadInstance(slug);
+  if (error) {
+    return new Response(null, { status: 500 });
+  }
+  if (!data) {
+    return new Response(null, { status: 404 });
+  }
+  return new Response(null, { status: 200, headers: { Allow: "HEAD, POST, OPTIONS, DELETE" } });
+}
+
+export async function OPTIONS(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const { data, error } = await loadInstance(slug);
+  if (error) {
+    return new Response(null, { status: 500 });
+  }
+  if (!data) {
+    return new Response(null, { status: 404 });
+  }
+  return new Response(null, {
+    status: 204,
+    headers: {
+      Allow: "HEAD, POST, OPTIONS, DELETE",
+      "Access-Control-Allow-Methods": "POST, HEAD, OPTIONS, DELETE",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const { data, error } = await loadInstance(slug);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "MCP instance not found" }, { status: 404 });
+  }
+  return NextResponse.json({ slug, status: "noop" }, { status: 200 });
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const { data: instance, error: instanceError, supabase } = await loadInstance(slug);
 
   if (instanceError) {
     return NextResponse.json({ error: instanceError.message }, { status: 500 });
