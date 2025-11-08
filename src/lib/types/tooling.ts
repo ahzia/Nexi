@@ -35,6 +35,21 @@ export interface ToolDraft {
   outputSchema?: unknown;
   /** Security requirements found on the operation */
   security?: OpenAPIV3.SecurityRequirementObject[];
+  /** HTTP metadata used by the runtime executor */
+  httpConfig?: {
+    baseUrl?: string;
+    parameters: Array<{
+      name: string;
+      in: 'query' | 'path' | 'header';
+      required: boolean;
+    }>;
+    requestBody?: {
+      propertyName: string;
+      contentType?: string;
+      required: boolean;
+    };
+    responseContentType?: string;
+  };
   /** Raw OpenAPI operation for future advanced editing */
   rawOperation: OpenAPIV3.OperationObject | OpenAPIV3_1.OperationObject;
 }

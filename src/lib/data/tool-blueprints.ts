@@ -48,14 +48,9 @@ export interface ToolBlueprintSummary {
   id: string;
   label: string;
   created_at: string;
-  tools: Array<{
-    id: string;
-    name: string;
-    method: string;
-    path: string;
-    description: string;
-    tags: string[];
-  }>;
+  tools: Array<
+    Omit<ToolDraft, "rawOperation">
+  >;
   warnings: CreateToolBlueprintPayload["warnings"];
 }
 
@@ -80,7 +75,6 @@ export async function listToolBlueprints(limit = 10): Promise<ToolBlueprintSumma
     warnings: item.warnings ?? [],
   }));
 }
-
 
 export interface ToolBlueprintDetail extends ToolBlueprintSummary {
   raw_spec: string | null;
@@ -110,4 +104,47 @@ export async function getToolBlueprint(id: string): Promise<ToolBlueprintDetail 
     warnings: data.warnings ?? [],
     raw_spec: data.raw_spec ?? null,
   };
+}
+
+export interface UpdateToolBlueprintPayload {
+  id: string;
+  label?: string;
+  tools?: Array<Omit<ToolDraft, "rawOperation">>;
+  warnings?: CreateToolBlueprintPayload["warnings"];
+}
+
+export async function updateToolBlueprint(payload: UpdateToolBlueprintPayload) {
+  const supabase = getSupabaseAdminClient();
+  const updateBody: Record<string, unknown> = {};
+
+  if (payload.label !== undefined) {
+    updateBody.label = payload.label;
+  }
+  if (payload.tools !== undefined) {
+    updateBody.tools = payload.tools;
+  }
+  if (payload.warnings !== undefined) {
+    updateBody.warnings = payload.warnings;
+  }
+
+  if (Object.keys(updateBody).length === 0) {
+    return { id: payload.id };
+  }
+
+  const { data, error } = await supabase
+    .from("tool_blueprints")
+    .update({
+      ...updateBody,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+    .eq("id", payload.id)
+    .select("id")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }

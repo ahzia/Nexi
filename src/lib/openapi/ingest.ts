@@ -92,7 +92,7 @@ function extractOperations(document: OpenAPIDocument): OperationWithPath[] {
   return entries;
 }
 
-function mapOperationToTool({ method, path, operation }: OperationWithPath, warnings: IngestionWarning[]): ToolDraft {
+function mapOperationToTool({ document, method, path, operation }: OperationWithPath, warnings: IngestionWarning[]): ToolDraft {
   const preferredId = operation.operationId ?? fallbackOperationId(method, path);
   if (!operation.operationId) {
     warnings.push({
@@ -109,9 +109,9 @@ function mapOperationToTool({ method, path, operation }: OperationWithPath, warn
     operation.summary?.trim() ||
     `Invoke ${method.toUpperCase()} ${path} on the upstream service.`;
 
-  const { inputSchema, schemaWarnings } = buildInputSchema(operation, method, path);
+  const { inputSchema, schemaWarnings, httpConfig } = buildInputSchema(operation, method, path);
   warnings.push(...schemaWarnings);
-  const outputSchema = buildOutputSchema(operation);
+  const { schema: outputSchema, contentType: responseContentType } = buildOutputSchema(operation);
 
   return {
     id: preferredId,
@@ -124,6 +124,12 @@ function mapOperationToTool({ method, path, operation }: OperationWithPath, warn
     inputSchema,
     outputSchema,
     security: operation.security,
+    httpConfig: {
+      baseUrl: resolveBaseUrl(operation, document),
+      parameters: httpConfig.parameters,
+      requestBody: httpConfig.requestBody,
+      responseContentType,
+    },
     rawOperation: operation,
   };
 }
@@ -134,10 +140,12 @@ function buildInputSchema(
   operation: OpenAPIV3.OperationObject | OpenAPIV3_1.OperationObject,
   method: HttpMethod,
   path: string,
-): { inputSchema: unknown; schemaWarnings: IngestionWarning[] } {
+): { inputSchema: unknown; schemaWarnings: IngestionWarning[]; httpConfig: { parameters: Array<{ name: string; in: 'query' | 'path' | 'header'; required: boolean }>; requestBody?: { propertyName: string; contentType?: string; required: boolean } } } {
   const schemaWarnings: IngestionWarning[] = [];
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
+  const httpParameters: Array<{ name: string; in: 'query' | 'path' | 'header'; required: boolean }> = [];
+  let requestBodyConfig: { propertyName: string; contentType?: string; required: boolean } | undefined;
 
   const parameters: (OpenAPIV3.ParameterObject | OpenAPIV3_1.ParameterObject)[] = Array.isArray(operation.parameters)
     ? (operation.parameters as (OpenAPIV3.ParameterObject | OpenAPIV3_1.ParameterObject)[])
@@ -152,6 +160,14 @@ function buildInputSchema(
       description: parameter.description,
       example: (parameter as OpenAPIV3.ParameterObject).example,
     };
+    const location = (parameter as OpenAPIV3.ParameterObject).in;
+    if (location === 'query' || location === 'path' || location === 'header') {
+      httpParameters.push({
+        name,
+        in: location,
+        required: Boolean(parameter.required),
+      });
+    }
     if (parameter.required) {
       required.push(name);
     }
@@ -159,7 +175,8 @@ function buildInputSchema(
 
   const requestBody = operation.requestBody as OpenAPIV3.RequestBodyObject | OpenAPIV3_1.RequestBodyObject | undefined;
   if (requestBody?.content) {
-    const bodySchema = pickFirstJsonSchema(requestBody.content);
+    const bodySelection = pickPreferredMediaType(requestBody.content);
+    const bodySchema = bodySelection?.schema;
     if (bodySchema) {
       const bodyPropertyName = resolveBodyProperty(properties);
       properties[bodyPropertyName] = {
@@ -169,6 +186,11 @@ function buildInputSchema(
       if (requestBody.required) {
         required.push(bodyPropertyName);
       }
+      requestBodyConfig = {
+        propertyName: bodyPropertyName,
+        contentType: bodySelection?.mediaType,
+        required: Boolean(requestBody.required),
+      };
     } else {
       schemaWarnings.push({
         id: `missing-request-body-schema-${method}-${path}`,
@@ -187,6 +209,10 @@ function buildInputSchema(
       additionalProperties: false,
     },
     schemaWarnings,
+    httpConfig: {
+      parameters: httpParameters,
+      requestBody: requestBodyConfig,
+    },
   };
 }
 
@@ -201,29 +227,48 @@ function resolveBodyProperty(existing: Record<string, unknown>): string {
   return `body${index}`;
 }
 
-function pickFirstJsonSchema(
+function pickPreferredMediaType(
   content: Record<string, OpenAPIV3.MediaTypeObject | OpenAPIV3_1.MediaTypeObject>,
-): OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject | undefined {
+): { schema?: OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject; mediaType: string } | undefined {
   const entries = Object.entries(content);
   if (entries.length === 0) return undefined;
 
   // Prefer JSON-like media types
   const jsonEntry = entries.find(([type]) => type.includes('json'));
-  const target = (jsonEntry ?? entries[0])[1];
+  const [mediaType, target] = jsonEntry ?? entries[0];
 
-  return target.schema as OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject | undefined;
+  return {
+    mediaType,
+    schema: target.schema as OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject | undefined,
+  };
 }
 
 function buildOutputSchema(
   operation: OpenAPIV3.OperationObject | OpenAPIV3_1.OperationObject,
-): OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject | undefined {
-  if (!operation.responses) return undefined;
+): { schema?: OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject; contentType?: string } {
+  if (!operation.responses) return {};
   const successStatus = Object.keys(operation.responses).find((status) => /^2\d\d$/.test(status));
-  if (!successStatus) return undefined;
+  if (!successStatus) return {};
 
   const response = operation.responses[successStatus] as OpenAPIV3.ResponseObject | OpenAPIV3_1.ResponseObject | undefined;
-  if (!response?.content) return undefined;
+  if (!response?.content) return {};
 
-  return pickFirstJsonSchema(response.content);
+  const selected = pickPreferredMediaType(response.content);
+  return {
+    schema: selected?.schema,
+    contentType: selected?.mediaType,
+  };
+}
+
+function resolveBaseUrl(
+  operation: OpenAPIV3.OperationObject | OpenAPIV3_1.OperationObject,
+  document: OpenAPIDocument,
+): string | undefined {
+  const opServer = Array.isArray(operation.servers) && operation.servers.length > 0 ? operation.servers[0]?.url : undefined;
+  if (opServer) return opServer;
+  if (Array.isArray(document.servers) && document.servers.length > 0) {
+    return document.servers[0]?.url;
+  }
+  return undefined;
 }
 
