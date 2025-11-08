@@ -7,6 +7,8 @@ import "reactflow/dist/style.css";
 import type { ToolDraft } from "@/lib/types/tooling";
 import { ToolNode } from "@/components/canvas/ToolNode";
 import { PhaseNode } from "@/components/canvas/PhaseNode";
+import { ValidationNode } from "@/components/canvas/ValidationNode";
+import { TransformNode } from "@/components/canvas/TransformNode";
 
 type CanvasTool = Omit<ToolDraft, "rawOperation">;
 
@@ -19,14 +21,22 @@ interface BlueprintCanvasProps {
 const nodeTypes: NodeTypes = {
   toolNode: ToolNode,
   phaseNode: PhaseNode,
+  validationNode: ValidationNode,
+  transformNode: TransformNode,
 };
+
+interface GraphResult {
+  nodes: Node[];
+  edges: Edge[];
+}
 
 function buildGraph(
   tools: CanvasTool[],
   selectedToolId: string | null | undefined,
   onSelectTool?: (toolId: string) => void,
-): { nodes: Node[]; edges: Edge[] } {
-  const baseY = 120;
+): GraphResult {
+  const baseY = 80;
+  const spacingY = 200;
   const nodes: Node[] = [
     {
       id: "agent-request",
@@ -34,7 +44,7 @@ function buildGraph(
       position: { x: -260, y: baseY },
       data: {
         title: "Agent Request",
-        subtitle: "ChatGPT / Claude issues tools.call",
+        subtitle: "LLM issues tools.call",
       },
     },
     {
@@ -42,33 +52,33 @@ function buildGraph(
       type: "phaseNode",
       position: { x: -20, y: baseY },
       data: {
-        title: "Nexi MCP Runtime",
-        subtitle: "Validate payload · map to HTTP",
+        title: "Nexi Runtime",
+        subtitle: "Validate & sign request",
       },
     },
     {
       id: "upstream-api",
       type: "phaseNode",
-      position: { x: 460, y: baseY },
+      position: { x: 680, y: baseY },
       data: {
         title: "Client API",
-        subtitle: "REST call · parse response",
+        subtitle: "CapCorn endpoints",
       },
     },
     {
       id: "agent-response",
       type: "phaseNode",
-      position: { x: 720, y: baseY },
+      position: { x: 940, y: baseY },
       data: {
         title: "Agent Response",
-        subtitle: "Structured content returned",
+        subtitle: "Data returned to user",
       },
     },
   ];
 
   const edges: Edge[] = [
     {
-      id: "edge-agent-mcp",
+      id: "edge-agent-runtime",
       source: "agent-request",
       target: "mcp-runtime",
       type: "smoothstep",
@@ -77,14 +87,45 @@ function buildGraph(
     },
   ];
 
-  const toolX = 200;
-  const toolSpacing = 170;
+  let previousStageId = "mcp-runtime";
 
   tools.forEach((tool, index) => {
+    const y = baseY + index * spacingY;
+    const httpMeta = tool.httpConfig;
+    const requiresValidation = Boolean(
+      (httpMeta?.parameters ?? []).some((param) => param.required) || httpMeta?.requestBody?.required,
+    );
+    const validationNodeId = `${tool.id}-validation`;
+    const transformNodeId = `${tool.id}-transform`;
+
+    if (requiresValidation) {
+      nodes.push({
+        id: validationNodeId,
+        type: "validationNode",
+        position: { x: 140, y },
+        data: {
+          requiredParams: (httpMeta?.parameters ?? []).filter((param) => param.required).map((param) => ({
+            name: param.name,
+            in: param.in,
+          })),
+          requiresBody: Boolean(httpMeta?.requestBody?.required),
+        },
+      });
+      edges.push({
+        id: `${previousStageId}->${validationNodeId}`,
+        source: previousStageId,
+        target: validationNodeId,
+        type: "smoothstep",
+        animated: true,
+        style: { stroke: "var(--color-primary-500)" },
+      });
+      previousStageId = validationNodeId;
+    }
+
     nodes.push({
       id: tool.id,
       type: "toolNode",
-      position: { x: toolX, y: index * toolSpacing },
+      position: { x: 360, y },
       data: {
         tool,
         selected: tool.id === selectedToolId,
@@ -92,21 +133,47 @@ function buildGraph(
       },
     });
 
-    const sourceId = index === 0 ? "mcp-runtime" : tools[index - 1].id;
     edges.push({
-      id: `${sourceId}->${tool.id}`,
-      source: sourceId,
+      id: `${previousStageId}->${tool.id}`,
+      source: previousStageId,
       target: tool.id,
       type: "smoothstep",
       animated: true,
       style: { stroke: "var(--color-primary-500)" },
     });
+
+    previousStageId = tool.id;
+
+    const hasTransformer = Boolean(
+      httpMeta?.responseTransformer || httpMeta?.responseContentType?.includes("xml"),
+    );
+    if (hasTransformer) {
+      nodes.push({
+        id: transformNodeId,
+        type: "transformNode",
+        position: { x: 560, y },
+        data: {
+          transformer: httpMeta?.responseTransformer ?? (httpMeta?.responseContentType?.includes("xml") ? "xml-to-json" : undefined),
+          responseType: httpMeta?.responseContentType,
+        },
+      });
+
+      edges.push({
+        id: `${tool.id}->${transformNodeId}`,
+        source: tool.id,
+        target: transformNodeId,
+        type: "smoothstep",
+        animated: true,
+        style: { stroke: "var(--color-primary-500)" },
+      });
+
+      previousStageId = transformNodeId;
+    }
   });
 
-  const finalSource = tools.length > 0 ? tools[tools.length - 1].id : "mcp-runtime";
   edges.push({
-    id: `${finalSource}->upstream-api`,
-    source: finalSource,
+    id: `${previousStageId}->upstream-api`,
+    source: previousStageId,
     target: "upstream-api",
     type: "smoothstep",
     animated: true,
@@ -114,7 +181,7 @@ function buildGraph(
   });
 
   edges.push({
-    id: "edge-api-response",
+    id: "edge-upstream-response",
     source: "upstream-api",
     target: "agent-response",
     type: "smoothstep",
@@ -132,7 +199,7 @@ export function BlueprintCanvas({ tools, selectedToolId, onSelectTool }: Bluepri
   );
 
   return (
-    <div className="h-[480px] w-full overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/40">
+    <div className="h-[520px] w-full overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/40">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -140,8 +207,8 @@ export function BlueprintCanvas({ tools, selectedToolId, onSelectTool }: Bluepri
         fitView
         nodesDraggable={false}
         nodesConnectable={false}
-        minZoom={0.5}
-        maxZoom={1.5}
+        minZoom={0.4}
+        maxZoom={1.4}
         className="bg-none text-[var(--ui-text-primary)]"
         onNodeClick={(_, node) => onSelectTool?.(node.id)}
         onPaneClick={() => onSelectTool?.(null)}

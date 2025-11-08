@@ -49,6 +49,7 @@ export interface ToolDraft {
       required: boolean;
     };
     responseContentType?: string;
+    responseTransformer?: string;
   };
   /** Raw OpenAPI operation for future advanced editing */
   rawOperation: OpenAPIV3.OperationObject | OpenAPIV3_1.OperationObject;

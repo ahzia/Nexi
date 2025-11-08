@@ -113,6 +113,8 @@ function mapOperationToTool({ document, method, path, operation }: OperationWith
   warnings.push(...schemaWarnings);
   const { schema: outputSchema, contentType: responseContentType } = buildOutputSchema(operation);
 
+  const responseTransformer = responseContentType?.includes("xml") ? "xml-to-json" : undefined;
+
   return {
     id: preferredId,
     name,
@@ -129,6 +131,7 @@ function mapOperationToTool({ document, method, path, operation }: OperationWith
       parameters: httpConfig.parameters,
       requestBody: httpConfig.requestBody,
       responseContentType,
+      responseTransformer,
     },
     rawOperation: operation,
   };

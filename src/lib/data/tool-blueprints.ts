@@ -148,3 +148,46 @@ export async function updateToolBlueprint(payload: UpdateToolBlueprintPayload) {
 
   return data;
 }
+export async function deleteToolBlueprint(id: string) {
+  const supabase = getSupabaseAdminClient();
+
+  const { data: instances, error: instancesError } = await supabase
+    .from("mcp_instances")
+    .select("id")
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+    .eq("blueprint_id", id);
+
+  if (instancesError) {
+    throw instancesError;
+  }
+
+  const instanceIds = (instances ?? []).map((instance) => instance.id);
+
+  if (instanceIds.length > 0) {
+    const { error: toolDeleteError } = await supabase
+      .from("tool_versions")
+      .delete()
+      .in("mcp_instance_id", instanceIds);
+    if (toolDeleteError) {
+      throw toolDeleteError;
+    }
+
+    const { error: instanceDeleteError } = await supabase
+      .from("mcp_instances")
+      .delete()
+      .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+      .eq("blueprint_id", id);
+    if (instanceDeleteError) {
+      throw instanceDeleteError;
+    }
+  }
+
+  const { error } = await supabase
+    .from("tool_blueprints")
+    .delete()
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+    .eq("id", id);
+  if (error) {
+    throw error;
+  }
+}

@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { executeHttpTool, ValidationError } from "@/lib/mcp/runtime";
+import type { RuntimeTool, ToolMetadata } from "@/lib/mcp/types";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 const JSON_RPC_VERSION = "2.0";
@@ -12,27 +14,6 @@ interface JsonRpcRequest {
   method: string;
   params?: Record<string, unknown>;
 }
-
-interface ToolMetadata {
-  method?: string;
-  path?: string;
-  httpConfig?: {
-    baseUrl?: string;
-    parameters?: Array<{
-      name: string;
-      in: "query" | "path" | "header";
-      required: boolean;
-    }>;
-    requestBody?: {
-      propertyName: string;
-      contentType?: string;
-      required: boolean;
-    };
-    responseContentType?: string;
-  } | null;
-}
-
-type HttpParameters = NonNullable<ToolMetadata["httpConfig"]>["parameters"];
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -116,12 +97,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
       try {
         const argumentsObject = (body.params?.arguments ?? {}) as Record<string, unknown>;
-        const executionResult = await executeHttpTool({
-          tool,
-          args: argumentsObject,
-        });
+        const runtimeTool: RuntimeTool = {
+          name: tool.name,
+          description: tool.description,
+          instructions: tool.instructions,
+          metadata: (tool.metadata ?? {}) as ToolMetadata,
+        };
+        const executionResult = await executeHttpTool(runtimeTool, argumentsObject);
         return NextResponse.json(makeResult(body.id, executionResult));
       } catch (error) {
+        if (error instanceof ValidationError) {
+          return NextResponse.json(makeError(body.id, -32602, formatValidationMessage(error)), { status: 422 });
+        }
         return NextResponse.json(
           makeError(body.id, -32010, (error as Error).message ?? "Failed to execute tool"),
           { status: 500 },
@@ -169,149 +156,9 @@ function defaultCapabilities() {
   };
 }
 
-async function executeHttpTool({
-  tool,
-  args,
-}: {
-  tool: {
-    name: string;
-    description: string | null;
-    schema: unknown;
-    output_schema: unknown;
-    instructions: string | null;
-    is_active: boolean;
-    metadata: ToolMetadata | null;
-  };
-  args: Record<string, unknown>;
-}) {
-  const metadata = tool.metadata ?? {};
-  const httpMeta = metadata.httpConfig ?? undefined;
-  const baseUrl = httpMeta?.baseUrl ?? process.env.NEXI_DEFAULT_BASE_URL;
-  const pathTemplate = metadata.path ?? "";
-  const method = (metadata.method ?? "get").toUpperCase();
-
-  if (!baseUrl) {
-    throw new Error(
-      `No base URL defined for tool "${tool.name}". Add a server URL to the OpenAPI spec or set NEXI_DEFAULT_BASE_URL.`,
-    );
+function formatValidationMessage(error: ValidationError) {
+  if (!error.details || error.details.length === 0) {
+    return error.message;
   }
-
-  const { url, headers, body } = buildHttpRequest({
-    baseUrl,
-    pathTemplate,
-    method,
-    args,
-    httpMeta,
-  });
-
-  const response = await fetch(url, {
-    method,
-    headers,
-    body,
-  });
-
-  const responseText = await response.text();
-  let parsedBody: unknown = undefined;
-  try {
-    parsedBody = responseText ? JSON.parse(responseText) : undefined;
-  } catch {
-    // Non-JSON response
-  }
-
-  const summary = response.ok
-    ? `✅ ${tool.name} responded with status ${response.status}.`
-    : `⚠️ ${tool.name} returned error status ${response.status}.`;
-
-  const contentBlocks = [
-    {
-      type: "text" as const,
-      text: summary,
-    },
-  ];
-
-  if (!parsedBody) {
-    contentBlocks.push({
-      type: "text" as const,
-      text: responseText || "(empty response body)",
-    });
-  }
-
-  return {
-    content: contentBlocks,
-    structuredContent: parsedBody ?? { raw: responseText },
-    isError: !response.ok,
-  };
-}
-
-function buildHttpRequest({
-  baseUrl,
-  pathTemplate,
-  method,
-  args,
-  httpMeta,
-}: {
-  baseUrl: string;
-  pathTemplate: string;
-  method: string;
-  args: Record<string, unknown>;
-  httpMeta?: ToolMetadata["httpConfig"];
-}) {
-  const headers = new Headers();
-  headers.set("Accept", httpMeta?.responseContentType ?? "application/json");
-
-  const replacedPath = replacePathParams(pathTemplate, args, httpMeta?.parameters);
-  const url = new URL(replacedPath.startsWith("/") ? replacedPath.slice(1) : replacedPath, ensureTrailingSlash(baseUrl));
-
-  if (httpMeta?.parameters) {
-    httpMeta.parameters.forEach((param) => {
-      const value = args[param.name];
-      if (value === undefined || value === null) {
-        return;
-      }
-      if (param.in === "query") {
-        url.searchParams.set(param.name, String(value));
-      }
-      if (param.in === "header") {
-        headers.set(param.name, String(value));
-      }
-    });
-  }
-
-  let body: string | undefined;
-  if (httpMeta?.requestBody) {
-    const bodyValue = args[httpMeta.requestBody.propertyName];
-    if (bodyValue !== undefined) {
-      headers.set("Content-Type", httpMeta.requestBody.contentType ?? "application/json");
-      body = headers.get("Content-Type")?.includes("application/json") ? JSON.stringify(bodyValue) : String(bodyValue);
-    }
-  }
-
-  if (method === "GET" || method === "HEAD") {
-    body = undefined;
-  }
-
-  return { url: url.toString(), headers, body };
-}
-
-function replacePathParams(
-  template: string,
-  args: Record<string, unknown>,
-  parameters?: HttpParameters,
-) {
-  if (!template.includes("{")) return template;
-  return template.replace(/\{([^}]+)\}/g, (fullMatch, paramName) => {
-    const parameter = parameters?.find((param) => param.in === "path" && param.name === paramName);
-    if (!parameter) {
-      return args[paramName] !== undefined ? encodeURIComponent(String(args[paramName])) : fullMatch;
-    }
-    const value = args[paramName];
-    if (value === undefined || value === null) {
-      throw new Error(`Missing required path parameter "${paramName}".`);
-    }
-    return encodeURIComponent(String(value));
-  });
-}
-
-function ensureTrailingSlash(url: string) {
-  return url.endsWith("/") ? url : `${url}/`;
+  return `${error.message}: ${error.details.join(" ")}`;
 }

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { getToolBlueprint, updateToolBlueprint } from "@/lib/data/tool-blueprints";
+import { getToolBlueprint, updateToolBlueprint, deleteToolBlueprint } from "@/lib/data/tool-blueprints";
 import type { ToolDraft } from "@/lib/types/tooling";
 
 const PatchSchema = z.object({
@@ -39,6 +39,7 @@ const PatchSchema = z.object({
               })
               .optional(),
             responseContentType: z.string().optional(),
+            responseTransformer: z.string().optional(),
           })
           .optional(),
       }),
@@ -74,14 +75,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const normalizedTools = payload.tools
       ? (payload.tools.map((tool) => ({
           ...tool,
-          method: tool.method,
+          inputSchema: tool.inputSchema ?? {},
           httpConfig: tool.httpConfig
             ? {
                 ...tool.httpConfig,
                 parameters: tool.httpConfig.parameters ?? [],
               }
             : undefined,
-        })) as Array<Omit<ToolDraft, "rawOperation">>)
+        })) satisfies Array<Omit<ToolDraft, "rawOperation">>)
       : undefined;
 
     const result = await updateToolBlueprint({
@@ -98,5 +99,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     console.error("[tool-blueprints.patch]", error);
     return NextResponse.json({ error: (error as Error).message ?? "Failed to update blueprint" }, { status: 400 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    await deleteToolBlueprint(id);
+    return NextResponse.json({ id }, { status: 200 });
+  } catch (error) {
+    console.error("[tool-blueprints.delete]", error);
+    return NextResponse.json({ error: (error as Error).message ?? "Failed to delete blueprint" }, { status: 400 });
   }
 }
