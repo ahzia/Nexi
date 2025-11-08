@@ -1,5 +1,6 @@
 import { ThemeToggle } from "@/components/theme-toggle";
 import { OpenApiIngestor } from "@/components/openapi-ingestor";
+import { BlueprintGallery } from "@/components/blueprint-gallery";
 
 export default function Home() {
   return (
@@ -70,6 +71,8 @@ export default function Home() {
         <section className="rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-8 shadow-[var(--ui-shadow-md)]">
           <OpenApiIngestor />
         </section>
+
+        <BlueprintGallery />
       </main>
     </div>
   );

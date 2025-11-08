@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import type { ToolDraft } from "@/lib/types/tooling";
 
@@ -76,6 +77,7 @@ export function OpenApiIngestor() {
   const [result, setResult] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = () => {
@@ -126,6 +128,7 @@ export function OpenApiIngestor() {
         throw new Error(json.error ?? "Failed to save blueprint");
       }
       setSaveStatus("saved");
+      router.refresh();
     } catch (err) {
       setSaveStatus("error");
       setError((err as Error).message);

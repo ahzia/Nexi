@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { createToolBlueprint } from "@/lib/data/tool-blueprints";
+import { createToolBlueprint, listToolBlueprints } from "@/lib/data/tool-blueprints";
 
 const PayloadSchema = z.object({
   source: z.string().min(1, "OpenAPI source is required."),
@@ -48,6 +48,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid payload", details: error.flatten() }, { status: 422 });
     }
     return NextResponse.json({ error: (error as Error).message ?? "Failed to save tool blueprint" }, { status: 400 });
+  }
+}
+
+export async function GET() {
+  try {
+    const data = await listToolBlueprints(20);
+    return NextResponse.json({ items: data }, { status: 200 });
+  } catch (error) {
+    console.error("[tool-blueprints] list failed", error);
+    return NextResponse.json({ error: (error as Error).message ?? "Failed to fetch tool blueprints" }, { status: 400 });
   }
 }
 

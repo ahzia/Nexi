@@ -17,6 +17,8 @@ export interface ToolDraft {
   id: string;
   /** Human-friendly name shown in the canvas */
   name: string;
+  /** External identifier for linking to storage (e.g., Supabase row id) */
+  blueprintId?: string;
   /** Description leveraged by MCP clients */
   description: string;
   /** Optional short summary from OpenAPI spec */
