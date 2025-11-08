@@ -25,9 +25,16 @@ export async function POST(req: NextRequest) {
       sourceName: payload.sourceName,
     });
 
+    const tools = result.tools.map((tool) => {
+      const copy = { ...tool };
+      // rawOperation holds the original OpenAPI operation which we don't return to the client yet.
+      delete (copy as { rawOperation?: unknown }).rawOperation;
+      return copy;
+    });
+
     return NextResponse.json(
       {
-        tools: result.tools,
+        tools,
         warnings: result.errors,
       },
       { status: 200 },
