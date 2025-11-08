@@ -7,6 +7,7 @@ import { publishBlueprintToMcp } from "@/lib/data/mcp";
 const PublishSchema = z.object({
   blueprintId: z.string().min(1, "Blueprint ID is required."),
   baseUrl: z.string().url().optional(),
+  requireKey: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -19,7 +20,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Blueprint not found" }, { status: 404 });
     }
 
-    const result = await publishBlueprintToMcp(blueprint, { baseUrl: payload.baseUrl });
+    const result = await publishBlueprintToMcp(blueprint, {
+      baseUrl: payload.baseUrl,
+      requireKey: payload.requireKey,
+    });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

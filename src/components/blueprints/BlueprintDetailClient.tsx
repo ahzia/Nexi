@@ -39,11 +39,12 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishResult, setPublishResult] = useState<{
     instanceId: string;
-    apiKey: string;
+    apiKey: string | null;
     endpoint: string;
     discovery: unknown;
     capabilities: unknown;
   } | null>(null);
+  const [requireKey, setRequireKey] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"canvas" | "tools" | "spec">("canvas");
 
   useEffect(() => {
@@ -219,7 +220,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
       const response = await fetch("/api/mcp/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blueprintId: blueprint.id }),
+        body: JSON.stringify({ blueprintId: blueprint.id, requireKey }),
       });
       const json = await response.json();
       if (!response.ok) {
@@ -227,7 +228,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
       }
       setPublishResult({
         instanceId: json.instance.id,
-        apiKey: json.apiKey,
+        apiKey: json.apiKey ?? null,
         endpoint: json.endpoint,
         discovery: json.discovery,
         capabilities: json.capabilities,
@@ -268,6 +269,15 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
             >
               {labelStatus === "saving" ? "Saving…" : "Save title"}
             </button>
+            <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/40 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-secondary)]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-[var(--ui-border)]"
+                checked={requireKey}
+                onChange={(event) => setRequireKey(event.target.checked)}
+              />
+              Require API key
+            </label>
             <button
               type="button"
               onClick={handlePublish}
@@ -285,7 +295,11 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
             <span className="text-[var(--color-error-500)]">{publishError}</span>
           ) : null}
           {publishStatus === "done" && publishResult ? (
-            <span className="text-[var(--color-success-500)]">MCP instance published.</span>
+            <span className="text-[var(--color-success-500)]">
+              {requireKey
+                ? "MCP instance published. API key generated below."
+                : "MCP instance published with public access."}
+            </span>
           ) : null}
         </div>
         {publishResult ? (
@@ -296,12 +310,19 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
                 {publishResult.endpoint}
               </pre>
             </div>
-            <div className="space-y-1">
-              <p className="font-semibold text-[var(--color-success-600)]">API key (copy immediately)</p>
-              <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2 py-1 text-[10px] text-[var(--ui-text-secondary)]">
-                {publishResult.apiKey}
-              </pre>
-            </div>
+            {publishResult.apiKey ? (
+              <div className="space-y-1">
+                <p className="font-semibold text-[var(--color-success-600)]">API key (copy immediately)</p>
+                <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2 py-1 text-[10px] text-[var(--ui-text-secondary)]">
+                  {publishResult.apiKey}
+                </pre>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="font-semibold text-[var(--color-success-600)]">Access</p>
+                <p>This endpoint is publicly accessible. No API key required.</p>
+              </div>
+            )}
             <details className="col-span-2 rounded-xl border border-dashed border-[var(--ui-border)] bg-[var(--ui-surface)]/60 p-3">
               <summary className="cursor-pointer font-semibold text-[var(--ui-text-primary)]">Discovery payload</summary>
               <pre className="mt-2 max-h-56 overflow-auto text-[10px]">

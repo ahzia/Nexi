@@ -32,15 +32,11 @@ interface ToolMetadata {
   } | null;
 }
 
+type HttpParameters = NonNullable<ToolMetadata["httpConfig"]>["parameters"];
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const supabase = getSupabaseAdminClient();
-
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Missing authorization header" }, { status: 401 });
-  }
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
   const { data: instance, error: instanceError } = await supabase
     .from("mcp_instances")
@@ -55,9 +51,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "MCP instance not found" }, { status: 404 });
   }
 
-  const valid = await bcrypt.compare(token, instance.api_key_hash);
-  if (!valid) {
-    return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+  const authHeader = req.headers.get("authorization");
+  if (instance.api_key_hash) {
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Missing authorization header" }, { status: 401 });
+    }
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const valid = await bcrypt.compare(token, instance.api_key_hash);
+    if (!valid) {
+      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+    }
   }
 
   const body = (await req.json()) as JsonRpcRequest;
@@ -137,8 +140,6 @@ function makeResult(id: JsonRpcRequest["id"], result: unknown) {
     result,
   };
 }
-
-type HttpParameters = NonNullable<ToolMetadata["httpConfig"]>["parameters"];
 
 function makeError(id: JsonRpcRequest["id"], code: number, message: string) {
   return {

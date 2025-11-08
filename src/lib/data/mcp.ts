@@ -12,7 +12,7 @@ type PublishResult = {
     slug: string;
     display_name?: string;
   };
-  apiKey: string;
+  apiKey: string | null;
   endpoint: string;
   discovery: unknown;
   capabilities: unknown;
@@ -25,6 +25,7 @@ const DEFAULT_MCP_VERSION = "2025-06-18";
 export interface PublishBlueprintOptions {
   baseUrl?: string;
   organizationId?: string;
+  requireKey?: boolean;
 }
 
 export async function publishBlueprintToMcp(
@@ -38,9 +39,10 @@ export async function publishBlueprintToMcp(
   const supabase = getSupabaseAdminClient();
   const organizationId = options.organizationId ?? DEFAULT_ORGANIZATION_ID;
   const baseUrl = (options.baseUrl ?? process.env.MCP_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "");
+  const requireKey = options.requireKey ?? false;
 
-  const apiKey = createApiKey();
-  const apiKeyHash = await bcrypt.hash(apiKey, 10);
+  const apiKey = requireKey ? createApiKey() : null;
+  const apiKeyHash = requireKey && apiKey ? await bcrypt.hash(apiKey, 10) : null;
 
   const slugBase = ensureMaxLength(toKebabCase(blueprint.label || "nexi-mcp"), 48);
   const slug = `${slugBase}-${shortId()}`;
@@ -48,7 +50,7 @@ export async function publishBlueprintToMcp(
   const endpoint = `${baseUrl}/mcp/${slug}`;
 
   const capabilities = buildCapabilities();
-  const discovery = buildDiscoveryPayload({ blueprint, endpoint, displayName, capabilities });
+  const discovery = buildDiscoveryPayload({ blueprint, endpoint, displayName, capabilities, requireKey });
 
   const { data: instance, error: instanceError } = await supabase
     .from("mcp_instances")
@@ -77,7 +79,7 @@ export async function publishBlueprintToMcp(
     schema: tool.inputSchema,
     output_schema: tool.outputSchema ?? null,
     description: tool.description,
-    instructions: buildInstructions({ tool, endpoint }),
+    instructions: buildInstructions({ tool, endpoint, requireKey }),
     is_active: true,
     metadata: {
       method: tool.method,
@@ -133,11 +135,13 @@ function buildDiscoveryPayload({
   endpoint,
   displayName,
   capabilities,
+  requireKey,
 }: {
   blueprint: ToolBlueprintDetail;
   endpoint: string;
   displayName: string;
   capabilities: unknown;
+  requireKey: boolean;
 }) {
   return {
     version: DEFAULT_MCP_VERSION,
@@ -148,10 +152,14 @@ function buildDiscoveryPayload({
         {
           type: "http",
           endpoint,
-          authentication: {
-            scheme: "bearer",
-            description: "Include the provided API key in the Authorization header",
-          },
+          ...(requireKey
+            ? {
+                authentication: {
+                  scheme: "bearer",
+                  description: "Include the provided API key in the Authorization header",
+                },
+              }
+            : {}),
         },
       ],
       capabilities,
@@ -168,13 +176,17 @@ function buildDiscoveryPayload({
 function buildInstructions({
   tool,
   endpoint,
+  requireKey,
 }: {
   tool: Omit<ToolDraft, "rawOperation">;
   endpoint: string;
+  requireKey: boolean;
 }) {
   return [
     `Invoke this tool to call ${tool.method.toUpperCase()} ${tool.path} on the upstream service.`,
     `Send arguments that satisfy the stored input schema; Nexi validates them before forwarding.`,
-    `Requests are routed through ${endpoint}. Include the MCP-issued API key as a Bearer token.`,
+    requireKey
+      ? `Include the provided API key as a Bearer token when calling ${endpoint}.`
+      : `This endpoint is publicly accessible at ${endpoint}.`,
   ].join(" ");
 }
