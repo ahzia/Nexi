@@ -1,3 +1,4 @@
+"use client";
 import { useState, useTransition } from "react";
 
 import type { ToolDraft } from "@/lib/types/tooling";
@@ -74,11 +75,13 @@ export function OpenApiIngestor() {
   const [source, setSource] = useState<string>(exampleOpenApi);
   const [result, setResult] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = () => {
     setError(null);
     setResult(null);
+    setSaveStatus("idle");
 
     startTransition(async () => {
       try {
@@ -99,6 +102,34 @@ export function OpenApiIngestor() {
         setError((err as Error).message);
       }
     });
+  };
+
+  const handleSave = async () => {
+    if (!result) return;
+    setSaveStatus("saving");
+    try {
+      const res = await fetch("/api/tool-blueprints", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source,
+          tools: result.tools,
+          warnings: result.warnings,
+          label: "Demo blueprint",
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error ?? "Failed to save blueprint");
+      }
+      setSaveStatus("saved");
+    } catch (err) {
+      setSaveStatus("error");
+      setError((err as Error).message);
+    }
   };
 
   return (
@@ -128,6 +159,14 @@ export function OpenApiIngestor() {
               className="inline-flex items-center gap-2 rounded-xl bg-[var(--ui-button-primary)] px-4 py-2 text-sm font-medium uppercase tracking-wide text-[var(--ui-text-inverse)] shadow-[var(--ui-shadow-sm)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-[var(--ui-button-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isPending ? "Processing…" : "Generate draft tools"}
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!result || saveStatus === "saving"}
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-2 text-sm font-medium uppercase tracking-wide text-[var(--ui-text-primary)] shadow-[var(--ui-shadow-sm)] transition-transform duration-200 hover:-translate-y-0.5 hover:border-[var(--ui-border-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved!" : "Save blueprint"}
             </button>
             <p className="text-xs text-[var(--ui-text-secondary)]">
               Tip: replace the sample with your own OpenAPI document to try another API.
