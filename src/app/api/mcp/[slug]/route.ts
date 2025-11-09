@@ -20,7 +20,8 @@ import {
 import { createStreamResponse } from "@/lib/mcp/stream";
 
 const JSON_RPC_VERSION = "2.0";
-const MCP_PROTOCOL_VERSION = process.env.NEXI_MCP_PROTOCOL_VERSION ?? "2024-07-24";
+const DEFAULT_MCP_PROTOCOL_VERSION = "2025-06-18";
+const MCP_PROTOCOL_VERSION = process.env.NEXI_MCP_PROTOCOL_VERSION ?? DEFAULT_MCP_PROTOCOL_VERSION;
 const SERVER_VERSION = process.env.NEXT_PUBLIC_NEXI_VERSION ?? "0.1.0";
 
 interface JsonRpcRequest {
@@ -265,8 +266,10 @@ async function handleJsonRpcRequest(
   switch (body.method) {
     case "initialize": {
       const sessionId = randomUUID();
+      const requestedVersion = typeof body.params?.protocolVersion === "string" ? body.params.protocolVersion : null;
+      const protocolVersion = requestedVersion ?? MCP_PROTOCOL_VERSION;
       return makeResult(body.id, {
-        protocolVersion: MCP_PROTOCOL_VERSION,
+        protocolVersion,
         sessionId,
         serverInfo: {
           name: instance.display_name ?? slug,

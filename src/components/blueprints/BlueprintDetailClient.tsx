@@ -43,9 +43,11 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
     endpoint: string;
     discovery: unknown;
     capabilities: unknown;
+    requiresKey: boolean;
   } | null>(null);
   const [requireKey, setRequireKey] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"canvas" | "tools" | "spec">("canvas");
+  const hasPublishedInstances = blueprint.instances.length > 0;
 
   useEffect(() => {
     setToolsState([...(blueprint.tools as CanvasTool[])]);
@@ -55,6 +57,26 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
     setToolStatus("idle");
     setToolError(null);
   }, [blueprint]);
+
+  useEffect(() => {
+    if (blueprint.instances.length > 0) {
+      const latest = blueprint.instances[0];
+      setPublishResult({
+        instanceId: latest.id,
+        apiKey: null,
+        endpoint: latest.baseUrl,
+        discovery: latest.discovery,
+        capabilities: latest.capabilities,
+        requiresKey: latest.requiresKey,
+      });
+      setPublishStatus("done");
+      setRequireKey(latest.requiresKey);
+    } else {
+      setPublishResult(null);
+      setPublishStatus("idle");
+      setRequireKey(false);
+    }
+  }, [blueprint.instances]);
 
   const selectedTool = useMemo<CanvasTool | null>(() => {
     if (!selectedToolId) return null;
@@ -232,6 +254,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
         endpoint: json.endpoint,
         discovery: json.discovery,
         capabilities: json.capabilities,
+        requiresKey: requireKey,
       });
       setPublishStatus("done");
       router.refresh();
@@ -284,7 +307,11 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
               disabled={publishStatus === "publishing" || toolsState.length === 0}
               className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-primary-500)] bg-[var(--ui-surface)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-primary-600)] shadow-[var(--ui-shadow-sm)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-500)]/10 disabled:opacity-60"
             >
-              {publishStatus === "publishing" ? "Publishing…" : "Publish MCP"}
+              {publishStatus === "publishing"
+                ? "Publishing…"
+                : hasPublishedInstances
+                  ? "Republish MCP"
+                  : "Publish MCP"}
             </button>
           </div>
         </div>
@@ -296,8 +323,8 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
           ) : null}
           {publishStatus === "done" && publishResult ? (
             <span className="text-[var(--color-success-500)]">
-              {requireKey
-                ? "MCP instance published. API key generated below."
+              {publishResult.requiresKey
+                ? "MCP instance published. API key is required for access."
                 : "MCP instance published with public access."}
             </span>
           ) : null}
@@ -310,13 +337,20 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
                 {publishResult.endpoint}
               </pre>
             </div>
-            {publishResult.apiKey ? (
-              <div className="space-y-1">
-                <p className="font-semibold text-[var(--color-success-600)]">API key (copy immediately)</p>
-                <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2 py-1 text-[10px] text-[var(--ui-text-secondary)]">
-                  {publishResult.apiKey}
-                </pre>
-              </div>
+            {publishResult.requiresKey ? (
+              publishResult.apiKey ? (
+                <div className="space-y-1">
+                  <p className="font-semibold text-[var(--color-success-600)]">API key (copy immediately)</p>
+                  <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2 py-1 text-[10px] text-[var(--ui-text-secondary)]">
+                    {publishResult.apiKey}
+                  </pre>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="font-semibold text-[var(--color-success-600)]">API key required</p>
+                  <p>Consumers must send a Bearer token. Republish to rotate or reveal a new key.</p>
+                </div>
+              )
             ) : (
               <div className="space-y-1">
                 <p className="font-semibold text-[var(--color-success-600)]">Access</p>
@@ -338,6 +372,53 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
           </div>
         ) : null}
       </section>
+
+      {blueprint.instances.length ? (
+        <section className="flex flex-col gap-4 rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-6 shadow-[var(--ui-shadow-md)]">
+          <header className="flex flex-col gap-1">
+            <h3 className="text-sm font-semibold text-[var(--ui-text-primary)]">Published instances</h3>
+            <p className="text-xs text-[var(--ui-text-secondary)]">
+              Each publish creates a new MCP slug. Reuse an existing endpoint or republish to mint another.
+            </p>
+          </header>
+          <ul className="flex flex-col gap-3">
+            {blueprint.instances.map((instance) => (
+              <li
+                key={instance.id}
+                className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/30 p-4 text-sm text-[var(--ui-text-secondary)]"
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--ui-text-primary)]">
+                      {instance.displayName ?? instance.slug}
+                    </p>
+                    <p className="text-xs text-[var(--ui-text-secondary)]">Slug: {instance.slug}</p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${instance.requiresKey ? "border-[var(--color-warning-500)]/60 bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)]" : "border-[var(--color-success-500)]/60 bg-[var(--color-success-500)]/10 text-[var(--color-success-600)]"}`}
+                  >
+                    {instance.requiresKey ? "API key required" : "Public"}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">Endpoint</p>
+                    <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2 py-1 text-[10px] text-[var(--ui-text-secondary)]">
+                      {instance.baseUrl}
+                    </pre>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <p className="font-semibold text-[var(--ui-text-secondary)]">Status & metadata</p>
+                    <p>Status: {instance.status}</p>
+                    <p>Created: {new Date(instance.createdAt).toLocaleString()}</p>
+                    <p>Updated: {new Date(instance.updatedAt).toLocaleString()}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <Tabs
         value={activeTab}

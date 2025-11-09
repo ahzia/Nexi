@@ -123,3 +123,4 @@ Anthropic’s remote MCP guidance (2024‑11) highlights:
 3. **Document privacy & data usage**: Work with legal/ops to publish a per-tenant policy ready for GPT/Claude review screens.
 4. **Track spec revisions**: Subscribe to MCP 2025+ changelog to adjust transports or schema changes early.
 
+

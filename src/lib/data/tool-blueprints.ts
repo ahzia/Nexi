@@ -78,6 +78,20 @@ export async function listToolBlueprints(limit = 10): Promise<ToolBlueprintSumma
 
 export interface ToolBlueprintDetail extends ToolBlueprintSummary {
   raw_spec: string | null;
+  instances: PublishedMcpInstance[];
+}
+
+export interface PublishedMcpInstance {
+  id: string;
+  slug: string;
+  displayName: string | null;
+  baseUrl: string;
+  status: string;
+  requiresKey: boolean;
+  capabilities: unknown;
+  discovery: unknown;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export async function getToolBlueprint(id: string): Promise<ToolBlueprintDetail | null> {
@@ -96,6 +110,32 @@ export async function getToolBlueprint(id: string): Promise<ToolBlueprintDetail 
     return null;
   }
 
+  const { data: instancesData, error: instancesError } = await supabase
+    .from("mcp_instances")
+    .select(
+      "id, slug, display_name, base_url, status, api_key_hash, capabilities, discovery_payload, created_at, updated_at",
+    )
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+    .eq("blueprint_id", id)
+    .order("created_at", { ascending: false });
+
+  if (instancesError) {
+    throw instancesError;
+  }
+
+  const instances: PublishedMcpInstance[] = (instancesData ?? []).map((instance) => ({
+    id: instance.id,
+    slug: instance.slug,
+    displayName: instance.display_name ?? null,
+    baseUrl: instance.base_url,
+    status: instance.status ?? "unknown",
+    requiresKey: Boolean(instance.api_key_hash),
+    capabilities: instance.capabilities ?? null,
+    discovery: instance.discovery_payload ?? null,
+    createdAt: instance.created_at,
+    updatedAt: instance.updated_at,
+  }));
+
   return {
     id: data.id,
     label: data.label ?? "Untitled blueprint",
@@ -103,6 +143,7 @@ export async function getToolBlueprint(id: string): Promise<ToolBlueprintDetail 
     tools: data.tools ?? [],
     warnings: data.warnings ?? [],
     raw_spec: data.raw_spec ?? null,
+    instances,
   };
 }
 

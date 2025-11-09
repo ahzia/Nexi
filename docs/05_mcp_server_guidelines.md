@@ -234,3 +234,4 @@ Clients use this data to decide which flows are supported.
 
 Use this guide when building new MCP servers or adapting existing client APIs; it should remain the single source of truth for how Nexi translates domain docs into compliant MCP interfaces.
 
+

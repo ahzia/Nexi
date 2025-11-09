@@ -190,3 +190,4 @@ For other hosts:
 
 Ship it! With the above steps, you should have a fully-functional Nexi MVP ready for hackathon demos: ingest spec, edit blueprint, publish to MCP, and call the live endpoint from an AI agent. Good luck!
 
+

@@ -18,3 +18,4 @@ export function fallbackOperationId(method: string, path: string): string {
   return `${method.toLowerCase()}${sanitizedPath}`.replace(/-+/g, '-').replace(/^-|-$/g, '');
 }
 
+
