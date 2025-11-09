@@ -30,6 +30,18 @@ function inferTransformer(contentType?: string) {
 }
 
 function transformXmlToJson(bodyText: string): TransformResult {
+  const trimmed = bodyText.trim();
+  if (!trimmed) {
+    return {
+      structuredContent: {
+        format: "xml-json",
+        data: {},
+        rawXml: bodyText,
+      },
+      additionalText: "Converted XML response to JSON (empty payload).",
+    };
+  }
+
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
@@ -40,12 +52,13 @@ function transformXmlToJson(bodyText: string): TransformResult {
 
   try {
     const parsed = parser.parse(bodyText);
-    const rootKeys = typeof parsed === "object" && parsed ? Object.keys(parsed) : [];
-    const summary = rootKeys.length ? `Converted XML response to JSON (root: ${rootKeys[0]}).` : undefined;
+    const { data, root } = pruneXmlDeclaration(parsed);
+    const summary = root ? `Converted XML response to JSON (root: ${root}).` : "Converted XML response to JSON.";
+
     return {
       structuredContent: {
         format: "xml-json",
-        data: parsed,
+        data,
         rawXml: bodyText,
       },
       additionalText: summary,
@@ -58,4 +71,19 @@ function transformXmlToJson(bodyText: string): TransformResult {
       },
     };
   }
+}
+
+function pruneXmlDeclaration(parsed: unknown): { data: unknown; root?: string } {
+  if (!parsed || typeof parsed !== "object") {
+    return { data: parsed ?? {}, root: undefined };
+  }
+
+  const { ["?xml"]: _xmlDecl, ...rest } = parsed as Record<string, unknown>;
+  const keys = Object.keys(rest);
+  if (keys.length === 0) {
+    return { data: {}, root: undefined };
+  }
+
+  const [root] = keys;
+  return { data: rest, root };
 }
