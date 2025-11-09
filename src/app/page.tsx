@@ -3,6 +3,7 @@ import { BlueprintGallery } from "@/components/blueprint-gallery";
 import { GenerateBlueprintLauncher } from "@/components/home/generate-blueprint-launcher";
 import { HeroShowcase } from "@/components/home/hero-showcase";
 import Link from "next/link";
+import Image from "next/image";
 import { CalendarRange, ExternalLink, PlayCircle, Sparkles } from "lucide-react";
 
 export default function Home() {
@@ -11,9 +12,9 @@ export default function Home() {
       <header className="sticky top-0 z-30 border-b border-[var(--ui-border)]/70 bg-[var(--ui-surface)]/80 backdrop-blur-xl shadow-[0_2px_24px_rgba(15,23,42,0.08)] transition-all duration-300 supports-[backdrop-filter]:bg-[var(--ui-surface)]/70 dark:border-[var(--ui-border)]/50 dark:shadow-[0_2px_22px_rgba(2,6,23,0.45)]">
         <div className="flex w-full items-center justify-between gap-4 py-4">
           <div className="flex flex-1 items-center gap-4">
-            <div className="group relative flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--ui-border)]/60 bg-gradient-to-br from-[var(--color-primary-500)] to-[var(--color-primary-700)] text-white shadow-[0_20px_40px_rgba(59,130,246,0.25)] dark:border-white/20">
-              <span className="text-lg font-semibold tracking-tight">NX</span>
-              <span className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+            <div className="group relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-[var(--ui-border)]/60 bg-[var(--ui-surface)] shadow-[0_20px_40px_rgba(59,130,246,0.25)] dark:border-white/20">
+              <Image src="/logo.png" alt="Nexi Studio" width={36} height={36} priority className="h-9 w-9 object-contain" />
+              <span className="absolute inset-0 rounded-2xl bg-white/10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-semibold tracking-tight text-[var(--ui-text-primary)]">

@@ -323,6 +323,12 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
     ? "border-[var(--color-success-500)]/60 bg-[var(--color-success-500)]/12 text-[var(--color-success-600)]"
     : "border-[var(--color-primary-500)]/60 bg-[var(--color-primary-500)]/12 text-[var(--color-primary-600)]";
   const latestInstance = blueprint.instances[0] ?? null;
+  const stats = [
+    { label: "Tools", value: toolsState.length, icon: Sparkles },
+    { label: "Warnings", value: warningCount, icon: AlertTriangle },
+    { label: "Published", value: publishedCount, icon: ShieldCheck },
+    { label: "Status", value: statusLabel, icon: CircleDot },
+  ];
   const activityEvents = [
     ...blueprint.instances.slice(0, 3).map((instance) => ({
       label: `Published ${instance.slug}`,
@@ -337,6 +343,9 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
         }
       : null,
   ].filter(Boolean) as Array<{ label: string; description: string; tone: "success" | "warning" }>;
+  const specDownloadHref = blueprint.raw_spec
+    ? `data:text/plain;charset=utf-8,${encodeURIComponent(blueprint.raw_spec)}`
+    : undefined;
 
   const renderToolForm = (options?: { showCancel?: boolean; onCancel?: () => void; submitLabel?: string }) => {
     if (!selectedTool || !editForm) {
