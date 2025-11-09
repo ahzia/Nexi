@@ -155,7 +155,9 @@ function buildInputSchema(
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   const httpParameters: Array<{ name: string; in: 'query' | 'path' | 'header'; required: boolean }> = [];
-  let requestBodyConfig: { propertyName: string; contentType?: string; required: boolean; xmlRoot?: string } | undefined;
+  let requestBodyConfig:
+    | { propertyName: string; contentType?: string; required: boolean; xmlRoot?: string; xmlSchema?: unknown }
+    | undefined;
 
   const parameters: (OpenAPIV3.ParameterObject | OpenAPIV3_1.ParameterObject)[] = Array.isArray(operation.parameters)
     ? (operation.parameters as (OpenAPIV3.ParameterObject | OpenAPIV3_1.ParameterObject)[])
@@ -188,9 +190,10 @@ function buildInputSchema(
     const bodySelection = pickPreferredMediaType(requestBody.content);
     const bodySchema = bodySelection?.schema;
     if (bodySchema) {
+      const sanitizedBodySchema = stripXmlAnnotations(bodySchema);
       const bodyPropertyName = resolveBodyProperty(properties);
       properties[bodyPropertyName] = {
-        ...bodySchema,
+        ...((sanitizedBodySchema as JsonSchema) ?? {}),
         description: requestBody.description ?? 'Request payload.',
       };
       if (requestBody.required) {
@@ -200,9 +203,10 @@ function buildInputSchema(
         propertyName: bodyPropertyName,
         contentType: bodySelection?.mediaType,
         required: Boolean(requestBody.required),
-        xmlRoot: bodySelection?.mediaType?.includes("xml")
+        xmlRoot: bodySelection?.mediaType?.includes('xml')
           ? (bodySchema as { xml?: { name?: string } })?.xml?.name ?? bodyPropertyName
           : undefined,
+        xmlSchema: bodySchema,
       };
     } else {
       schemaWarnings.push({
@@ -238,6 +242,47 @@ function resolveBodyProperty(existing: Record<string, unknown>): string {
     index += 1;
   }
   return `body${index}`;
+}
+
+function stripXmlAnnotations(schema: unknown): unknown {
+  if (Array.isArray(schema)) {
+    return schema.map((item) => stripXmlAnnotations(item));
+  }
+  if (!schema || typeof schema !== 'object') {
+    return schema;
+  }
+
+  const entries = Object.entries(schema as Record<string, unknown>);
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of entries) {
+    if (key === 'xml') {
+      continue;
+    }
+    if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
+      const sanitizedProps: Record<string, unknown> = {};
+      for (const [propKey, propValue] of Object.entries(value as Record<string, unknown>)) {
+        sanitizedProps[propKey] = stripXmlAnnotations(propValue);
+      }
+      result[key] = sanitizedProps;
+      continue;
+    }
+    if (key === 'items') {
+      result[key] = stripXmlAnnotations(value);
+      continue;
+    }
+    if (Array.isArray(value)) {
+      result[key] = value.map((item) => stripXmlAnnotations(item));
+      continue;
+    }
+    if (value && typeof value === 'object') {
+      result[key] = stripXmlAnnotations(value);
+      continue;
+    }
+    result[key] = value;
+  }
+
+  return result;
 }
 
 function pickPreferredMediaType(

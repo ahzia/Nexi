@@ -3,15 +3,7 @@ import { buildHttpRequest } from "./http";
 import { transformResponse } from "./transformers";
 import type { ExecutionResult, RuntimeTool } from "./types";
 
-interface ExecuteOptions {
-  inputSchema?: unknown;
-}
-
-export async function executeHttpTool(
-  tool: RuntimeTool,
-  args: Record<string, unknown>,
-  options: ExecuteOptions = {},
-): Promise<ExecutionResult> {
+export async function executeHttpTool(tool: RuntimeTool, args: Record<string, unknown>): Promise<ExecutionResult> {
   const metadata = tool.metadata ?? {};
   const httpMeta = metadata.httpConfig ?? undefined;
   const baseUrl = httpMeta?.baseUrl ?? process.env.NEXI_DEFAULT_BASE_URL;
@@ -32,7 +24,6 @@ export async function executeHttpTool(
     method,
     args,
     httpMeta,
-    inputSchema: options.inputSchema,
   });
 
   const response = await fetch(request.url, {

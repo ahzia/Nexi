@@ -182,11 +182,45 @@ function buildInstructions({
   endpoint: string;
   requireKey: boolean;
 }) {
-  return [
+  const baseLines = [
     `Invoke this tool to call ${tool.method.toUpperCase()} ${tool.path} on the upstream service.`,
     `Send arguments that satisfy the stored input schema; Nexi validates them before forwarding.`,
     requireKey
       ? `Include the provided API key as a Bearer token when calling ${endpoint}.`
       : `This endpoint is publicly accessible at ${endpoint}.`,
-  ].join(" ");
+  ];
+
+  const parameterHints = describeInputParameters(tool.inputSchema);
+
+  if (parameterHints.length > 0) {
+    baseLines.push("Provide the following parameters exactly as listed:");
+    baseLines.push(...parameterHints.map((hint) => `- ${hint}`));
+  }
+
+  return baseLines.join(" ");
+}
+
+function describeInputParameters(inputSchema: unknown): string[] {
+  if (!inputSchema || typeof inputSchema !== "object") return [];
+  const schema = inputSchema as { properties?: Record<string, unknown>; required?: string[] };
+  const properties = schema.properties ?? {};
+  if (typeof properties !== "object") return [];
+
+  const required = Array.isArray(schema.required) ? new Set(schema.required) : new Set<string>();
+
+  return Object.entries(properties)
+    .filter(([, value]) => value && typeof value === "object")
+    .map(([name, value]) => {
+      const prop = value as { description?: string; example?: unknown; in?: string };
+      const location = prop.in ? `${prop.in} parameter` : "field";
+      const requirement = required.has(name) ? "required" : "optional";
+      const example = prop.example !== undefined ? `e.g. ${String(prop.example)}` : undefined;
+      return [
+        `"${name}" (${location}, ${requirement})`,
+        prop.description ? `— ${prop.description}` : undefined,
+        example,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    });
 }
