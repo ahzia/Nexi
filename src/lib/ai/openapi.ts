@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+import { config } from "@/lib/config";
+
 export interface EnsureOpenApiResult {
   spec: string;
   iterations: number;
@@ -7,7 +9,7 @@ export interface EnsureOpenApiResult {
   notes: string[];
 }
 
-const MODEL = process.env.OPENAI_MCP_MODEL?.trim() || "gpt-4.1-mini";
+const MODEL = config.openai.model;
 const MAX_ATTEMPTS = 3;
 
 export async function ensureOpenApiSpec(rawInput: string): Promise<EnsureOpenApiResult> {
@@ -25,7 +27,7 @@ export async function ensureOpenApiSpec(rawInput: string): Promise<EnsureOpenApi
       notes.push(`Validation attempt ${iterations} failed: ${(error as Error).message}`);
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = config.openai.apiKey;
     if (!apiKey) {
       break;
     }

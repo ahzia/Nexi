@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { createToolBlueprint, listToolBlueprints } from "@/lib/data/tool-blueprints";
+import { createBlueprint, listBlueprintSummaries } from "@/lib/services/blueprints";
 import type { ToolDraft } from "@/lib/types/tooling";
 
 const PayloadSchema = z.object({
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         }) as Omit<ToolDraft, "rawOperation">,
     );
 
-    const result = await createToolBlueprint({
+    const result = await createBlueprint({
       ...payload,
       tools: normalizedTools,
     });
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const data = await listToolBlueprints(20);
+    const data = await listBlueprintSummaries(20);
     return NextResponse.json({ items: data }, { status: 200 });
   } catch (error) {
     console.error("[tool-blueprints] list failed", error);

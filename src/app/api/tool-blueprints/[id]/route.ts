@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { getToolBlueprint, updateToolBlueprint, deleteToolBlueprint } from "@/lib/data/tool-blueprints";
+import { getBlueprint, updateBlueprint, removeBlueprint } from "@/lib/services/blueprints";
 import type { ToolDraft } from "@/lib/types/tooling";
 
 const PatchSchema = z.object({
@@ -59,7 +59,7 @@ const PatchSchema = z.object({
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const blueprint = await getToolBlueprint(id);
+  const blueprint = await getBlueprint(id);
   if (!blueprint) {
     return NextResponse.json({ error: "Blueprint not found" }, { status: 404 });
   }
@@ -85,7 +85,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         })) satisfies Array<Omit<ToolDraft, "rawOperation">>)
       : undefined;
 
-    const result = await updateToolBlueprint({
+    const result = await updateBlueprint({
       id,
       label: payload.label,
       tools: normalizedTools,
@@ -105,7 +105,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await deleteToolBlueprint(id);
+    await removeBlueprint(id);
     return NextResponse.json({ id }, { status: 200 });
   } catch (error) {
     console.error("[tool-blueprints.delete]", error);

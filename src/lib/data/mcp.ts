@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 
+import { config, resolveMcpBaseUrl } from "@/lib/config";
 import type { ToolBlueprintDetail } from "@/lib/data/tool-blueprints";
 import type { ToolDraft } from "@/lib/types/tooling";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
@@ -18,7 +19,7 @@ type PublishResult = {
   capabilities: unknown;
 };
 
-const DEFAULT_ORGANIZATION_ID = process.env.DEFAULT_ORGANIZATION_ID ?? "demo-org";
+const DEFAULT_ORGANIZATION_ID = config.organizationId;
 
 const DEFAULT_MCP_VERSION = "2025-06-18";
 
@@ -38,7 +39,7 @@ export async function publishBlueprintToMcp(
 
   const supabase = getSupabaseAdminClient();
   const organizationId = options.organizationId ?? DEFAULT_ORGANIZATION_ID;
-  const baseUrl = (options.baseUrl ?? process.env.MCP_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "");
+  const baseUrl = resolveMcpBaseUrl(options.baseUrl);
   const requireKey = options.requireKey ?? false;
 
   const apiKey = requireKey ? createApiKey() : null;

@@ -1,7 +1,8 @@
+import { config } from "@/lib/config";
 import type { ToolDraft } from "@/lib/types/tooling";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
-const DEFAULT_ORGANIZATION_ID = process.env.DEFAULT_ORGANIZATION_ID ?? "demo-org";
+const DEFAULT_ORGANIZATION_ID = config.organizationId;
 
 export interface CreateToolBlueprintPayload {
   /**

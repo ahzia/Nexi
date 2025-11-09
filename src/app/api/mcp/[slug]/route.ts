@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { config } from "@/lib/config";
 import { executeHttpTool, ValidationError } from "@/lib/mcp/runtime";
 import type { RuntimeTool, ToolMetadata } from "@/lib/mcp/types";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
@@ -21,8 +22,8 @@ import { createStreamResponse } from "@/lib/mcp/stream";
 
 const JSON_RPC_VERSION = "2.0";
 const DEFAULT_MCP_PROTOCOL_VERSION = "2025-06-18";
-const MCP_PROTOCOL_VERSION = process.env.NEXI_MCP_PROTOCOL_VERSION ?? DEFAULT_MCP_PROTOCOL_VERSION;
-const SERVER_VERSION = process.env.NEXT_PUBLIC_NEXI_VERSION ?? "0.1.0";
+const MCP_PROTOCOL_VERSION = config.mcp.protocolVersion ?? DEFAULT_MCP_PROTOCOL_VERSION;
+const SERVER_VERSION = config.mcp.serverVersion;
 
 interface JsonRpcRequest {
   jsonrpc?: string;
