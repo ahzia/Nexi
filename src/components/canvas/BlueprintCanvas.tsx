@@ -55,8 +55,8 @@ function buildGraph(
     prepare: 760,
     tool: 1140,
     transform: 1520,
-    upstream: 1920,
-    response: 2240,
+    upstream: 1720,
+    response: 2100,
   };
 
   const nodes: Node[] = [
@@ -83,7 +83,7 @@ function buildGraph(
     {
       id: "upstream-api",
       type: "phaseNode",
-      position: { x: columns.upstream, y: baseY },
+      position: { x: columns.upstream, y: 0 },
       data: {
         title: "Client API",
         subtitle: "External service",
@@ -113,8 +113,6 @@ function buildGraph(
     },
   ];
 
-  let previousStageId = "mcp-runtime";
-
   tools.forEach((tool, index) => {
     const rowIndex = index % 3;
     const laneOffset = Math.floor(index / 3) * 80;
@@ -124,7 +122,9 @@ function buildGraph(
       (httpMeta?.parameters ?? []).some((param) => param.required) || Boolean(httpMeta?.requestBody?.required);
     const validationNodeId = `${tool.id}-validation`;
     const transformNodeId = `${tool.id}-transform`;
+    let finalNodeId = tool.id;
     const requestTransformNodeId = `${tool.id}-request-transform`;
+    let lastNodeId = "mcp-runtime";
 
     if (requiresValidation) {
       nodes.push({
@@ -140,14 +140,14 @@ function buildGraph(
         },
       });
       edges.push({
-        id: `${previousStageId}->${validationNodeId}`,
-        source: previousStageId,
+        id: `edge-${tool.id}-runtime-validation`,
+        source: lastNodeId,
         target: validationNodeId,
         type: "smoothstep",
         animated: true,
         style: { stroke: "var(--ui-border-strong)" },
       });
-      previousStageId = validationNodeId;
+      lastNodeId = validationNodeId;
     }
 
     const needsRequestTransform = Boolean(httpMeta?.requestBody?.contentType?.includes("xml"));
@@ -163,15 +163,15 @@ function buildGraph(
       });
 
       edges.push({
-        id: `${previousStageId}->${requestTransformNodeId}`,
-        source: previousStageId,
+        id: `edge-${tool.id}-validation-request`,
+        source: lastNodeId,
         target: requestTransformNodeId,
         type: "smoothstep",
         animated: true,
         style: { stroke: "var(--ui-border-strong)" },
       });
 
-      previousStageId = requestTransformNodeId;
+      lastNodeId = requestTransformNodeId;
     }
 
     nodes.push({
@@ -186,15 +186,15 @@ function buildGraph(
     });
 
     edges.push({
-      id: `${previousStageId}->${tool.id}`,
-      source: previousStageId,
+      id: `edge-${tool.id}-request-tool`,
+      source: lastNodeId,
       target: tool.id,
       type: "smoothstep",
       animated: true,
       style: { stroke: "var(--color-primary-500)" },
     });
 
-    previousStageId = tool.id;
+    lastNodeId = tool.id;
 
     const hasTransformer =
       Boolean(httpMeta?.responseTransformer) || Boolean(httpMeta?.responseContentType?.includes("xml"));
@@ -213,34 +213,49 @@ function buildGraph(
       });
 
       edges.push({
-        id: `${tool.id}->${transformNodeId}`,
-        source: tool.id,
+        id: `edge-${tool.id}-tool-transform`,
+        source: lastNodeId,
         target: transformNodeId,
         type: "smoothstep",
         animated: true,
         style: { stroke: "var(--color-primary-500)" },
       });
 
-      previousStageId = transformNodeId;
+      lastNodeId = transformNodeId;
+      finalNodeId = transformNodeId;
+    } else {
+      finalNodeId = tool.id;
+      lastNodeId = tool.id;
     }
-  });
 
-  edges.push({
-    id: `${previousStageId}->upstream-api`,
-    source: previousStageId,
-    target: "upstream-api",
-    type: "smoothstep",
-    animated: true,
-    style: { stroke: "var(--color-success-500)" },
-  });
+    edges.push({
+      id: `edge-${tool.id}-tool-upstream`,
+      source: tool.id,
+      target: "upstream-api",
+      type: "smoothstep",
+      animated: true,
+      style: { stroke: "var(--color-success-500)" },
+    });
 
-  edges.push({
-    id: "edge-upstream-response",
-    source: "upstream-api",
-    target: "agent-response",
-    type: "smoothstep",
-    animated: true,
-    style: { stroke: "var(--color-primary-500)" },
+    if (finalNodeId !== tool.id) {
+      edges.push({
+        id: `edge-${tool.id}-transform-response`,
+        source: finalNodeId,
+        target: "agent-response",
+        type: "smoothstep",
+        animated: true,
+        style: { stroke: "var(--color-primary-500)" },
+      });
+    } else {
+      edges.push({
+        id: `edge-${tool.id}-tool-response`,
+        source: tool.id,
+        target: "agent-response",
+        type: "smoothstep",
+        animated: true,
+        style: { stroke: "var(--color-primary-500)" },
+      });
+    }
   });
 
   return { nodes, edges };
