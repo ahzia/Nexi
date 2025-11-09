@@ -68,7 +68,16 @@ export async function POST(req: NextRequest) {
       warnings,
     });
 
-    return NextResponse.json({ id: blueprint.id }, { status: 201 });
+    return NextResponse.json(
+      {
+        id: blueprint.id,
+        usedModel,
+        iterations,
+        notes,
+        toolCount: ingestion.tools.length,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid payload", details: error.flatten() }, { status: 422 });
