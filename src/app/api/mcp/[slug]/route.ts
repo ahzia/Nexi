@@ -307,7 +307,9 @@ async function handleJsonRpcRequest(
           instructions: tool.instructions,
           metadata: (tool.metadata ?? {}) as ToolMetadata,
         };
-        const executionResult = await executeHttpTool(runtimeTool, argumentsObject);
+        const executionResult = await executeHttpTool(runtimeTool, argumentsObject, {
+          inputSchema: tool.schema,
+        });
         return makeResult(body.id, executionResult);
       } catch (error) {
         if (error instanceof ValidationError) {

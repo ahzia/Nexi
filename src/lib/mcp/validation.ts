@@ -27,10 +27,14 @@ export function validateToolArguments(metadata: ToolMetadata | null, args: Recor
     const payload = args[httpMeta.requestBody.propertyName];
     if (payload === undefined || payload === null || payload === "") {
       errors.push(`Missing required request body field "${httpMeta.requestBody.propertyName}".`);
-    } else if (httpMeta.requestBody.contentType?.includes("xml") && typeof payload !== "string") {
-      errors.push(
-        `Field "${httpMeta.requestBody.propertyName}" must be an XML string (content-type ${httpMeta.requestBody.contentType}).`,
-      );
+    } else if (httpMeta.requestBody.contentType?.includes("xml")) {
+      const isString = typeof payload === "string";
+      const isObject = typeof payload === "object" && payload !== null;
+      if (!isString && !isObject) {
+        errors.push(
+          `Field "${httpMeta.requestBody.propertyName}" must be provided as XML (string) or JSON object (content-type ${httpMeta.requestBody.contentType}).`,
+        );
+      }
     }
   }
 

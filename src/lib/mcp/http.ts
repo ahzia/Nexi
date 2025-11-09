@@ -1,3 +1,5 @@
+import { XMLBuilder } from "fast-xml-parser";
+
 import type { ToolMetadata, HttpParameter } from "./types";
 
 export interface HttpRequestConfig {
@@ -12,12 +14,14 @@ export function buildHttpRequest({
   method,
   args,
   httpMeta,
+  inputSchema,
 }: {
   baseUrl: string;
   pathTemplate: string;
   method: string;
   args: Record<string, unknown>;
   httpMeta?: ToolMetadata["httpConfig"];
+  inputSchema?: unknown;
 }): HttpRequestConfig {
   const headers = new Headers();
   headers.set("Accept", httpMeta?.responseContentType ?? "application/json");
@@ -46,7 +50,15 @@ export function buildHttpRequest({
     if (bodyValue !== undefined && bodyValue !== null) {
       const contentType = httpMeta.requestBody.contentType ?? "application/json";
       headers.set("Content-Type", contentType);
-      body = contentType.includes("application/json") && typeof bodyValue !== "string" ? JSON.stringify(bodyValue) : String(bodyValue);
+      if (contentType.includes("application/xml") || contentType.includes("text/xml")) {
+        body = serializeXmlBody({
+          value: bodyValue,
+          schema: resolveBodySchema(inputSchema, httpMeta.requestBody.propertyName),
+          rootName: httpMeta.requestBody.xmlRoot ?? httpMeta.requestBody.propertyName,
+        });
+      } else {
+        body = typeof bodyValue === "string" ? bodyValue : JSON.stringify(bodyValue);
+      }
     }
   }
 
@@ -78,4 +90,101 @@ function replacePathParams(
     }
     return encodeURIComponent(String(value));
   });
+}
+
+function resolveBodySchema(inputSchema: unknown, propertyName: string) {
+  if (!inputSchema || typeof inputSchema !== "object") return undefined;
+  const schemaObject = inputSchema as { properties?: Record<string, unknown> };
+  const properties = schemaObject.properties;
+  if (!properties || typeof properties !== "object") return undefined;
+  return (properties as Record<string, unknown>)[propertyName];
+}
+
+function serializeXmlBody({
+  value,
+  schema,
+  rootName,
+}: {
+  value: unknown;
+  schema: unknown;
+  rootName: string;
+}): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value !== "object" || value === null) {
+    throw new Error("XML request bodies must be provided as a string or JSON object.");
+  }
+
+  const builder = new XMLBuilder({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    suppressEmptyNode: true,
+    suppressBooleanAttributes: false,
+  });
+
+  const xmlSchema = normalizeSchema(schema);
+  const rootElementName = xmlSchema?.xml?.name ?? rootName;
+  const prepared = {
+    [rootElementName]: prepareXmlValue(value, xmlSchema),
+  };
+
+  return builder.build(prepared);
+}
+
+interface XmlSchema {
+  xml?: {
+    name?: string;
+    attribute?: boolean;
+    wrapped?: boolean;
+  };
+  type?: string | string[];
+  properties?: Record<string, XmlSchema>;
+  items?: XmlSchema | XmlSchema[];
+  additionalProperties?: boolean | XmlSchema;
+}
+
+function normalizeSchema(schema: unknown): XmlSchema | undefined {
+  if (!schema || typeof schema !== "object") return undefined;
+  const normalized = schema as XmlSchema;
+  const items = normalized.items;
+  if (Array.isArray(items)) {
+    normalized.items = items[0];
+  }
+  return normalized;
+}
+
+function prepareXmlValue(value: unknown, schema?: XmlSchema): unknown {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    const itemSchema = normalizeSchema(schema?.items);
+    return value.map((item) => prepareXmlValue(item, itemSchema));
+  }
+
+  if (typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    const objectValue = value as Record<string, unknown>;
+    const properties = schema?.properties ?? {};
+
+    for (const [key, childValue] of Object.entries(objectValue)) {
+      if (childValue === undefined || childValue === null) continue;
+      const childSchema = normalizeSchema(properties[key]);
+      const xmlMeta = childSchema?.xml;
+
+      if (xmlMeta?.attribute) {
+        const attributeName = xmlMeta.name ?? key;
+        result[`@_${attributeName}`] = childValue;
+      } else {
+        const elementName = xmlMeta?.name ?? key;
+        result[elementName] = prepareXmlValue(childValue, childSchema);
+      }
+    }
+
+    return result;
+  }
+
+  return value;
 }

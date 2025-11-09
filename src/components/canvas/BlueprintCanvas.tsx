@@ -9,6 +9,7 @@ import { ToolNode } from "@/components/canvas/ToolNode";
 import { PhaseNode } from "@/components/canvas/PhaseNode";
 import { ValidationNode } from "@/components/canvas/ValidationNode";
 import { TransformNode } from "@/components/canvas/TransformNode";
+import { RequestTransformNode } from "@/components/canvas/RequestTransformNode";
 
 type CanvasTool = Omit<ToolDraft, "rawOperation">;
 
@@ -23,6 +24,7 @@ const nodeTypes: NodeTypes = {
   phaseNode: PhaseNode,
   validationNode: ValidationNode,
   transformNode: TransformNode,
+  requestTransformNode: RequestTransformNode,
 };
 
 interface GraphResult {
@@ -97,6 +99,7 @@ function buildGraph(
     );
     const validationNodeId = `${tool.id}-validation`;
     const transformNodeId = `${tool.id}-transform`;
+    const requestTransformNodeId = `${tool.id}-request-transform`;
 
     if (requiresValidation) {
       nodes.push({
@@ -120,6 +123,32 @@ function buildGraph(
         style: { stroke: "var(--color-primary-500)" },
       });
       previousStageId = validationNodeId;
+    }
+
+    const needsRequestTransform = Boolean(
+      httpMeta?.requestBody?.contentType && httpMeta.requestBody.contentType.includes("xml"),
+    );
+
+    if (needsRequestTransform) {
+      nodes.push({
+        id: requestTransformNodeId,
+        type: "requestTransformNode",
+        position: { x: 260, y },
+        data: {
+          contentType: httpMeta?.requestBody?.contentType,
+        },
+      });
+
+      edges.push({
+        id: `${previousStageId}->${requestTransformNodeId}`,
+        source: previousStageId,
+        target: requestTransformNodeId,
+        type: "smoothstep",
+        animated: true,
+        style: { stroke: "var(--color-primary-500)" },
+      });
+
+      previousStageId = requestTransformNodeId;
     }
 
     nodes.push({

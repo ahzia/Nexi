@@ -47,6 +47,7 @@ export interface ToolDraft {
       propertyName: string;
       contentType?: string;
       required: boolean;
+      xmlRoot?: string;
     };
     responseContentType?: string;
     responseTransformer?: string;

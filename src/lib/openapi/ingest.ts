@@ -143,12 +143,19 @@ function buildInputSchema(
   operation: OpenAPIV3.OperationObject | OpenAPIV3_1.OperationObject,
   method: HttpMethod,
   path: string,
-): { inputSchema: unknown; schemaWarnings: IngestionWarning[]; httpConfig: { parameters: Array<{ name: string; in: 'query' | 'path' | 'header'; required: boolean }>; requestBody?: { propertyName: string; contentType?: string; required: boolean } } } {
+): {
+  inputSchema: unknown;
+  schemaWarnings: IngestionWarning[];
+  httpConfig: {
+    parameters: Array<{ name: string; in: 'query' | 'path' | 'header'; required: boolean }>;
+    requestBody?: { propertyName: string; contentType?: string; required: boolean; xmlRoot?: string };
+  };
+} {
   const schemaWarnings: IngestionWarning[] = [];
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   const httpParameters: Array<{ name: string; in: 'query' | 'path' | 'header'; required: boolean }> = [];
-  let requestBodyConfig: { propertyName: string; contentType?: string; required: boolean } | undefined;
+  let requestBodyConfig: { propertyName: string; contentType?: string; required: boolean; xmlRoot?: string } | undefined;
 
   const parameters: (OpenAPIV3.ParameterObject | OpenAPIV3_1.ParameterObject)[] = Array.isArray(operation.parameters)
     ? (operation.parameters as (OpenAPIV3.ParameterObject | OpenAPIV3_1.ParameterObject)[])
@@ -193,6 +200,9 @@ function buildInputSchema(
         propertyName: bodyPropertyName,
         contentType: bodySelection?.mediaType,
         required: Boolean(requestBody.required),
+        xmlRoot: bodySelection?.mediaType?.includes("xml")
+          ? (bodySchema as { xml?: { name?: string } })?.xml?.name ?? bodyPropertyName
+          : undefined,
       };
     } else {
       schemaWarnings.push({

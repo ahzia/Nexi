@@ -14,6 +14,7 @@ export interface ToolMetadata {
       propertyName: string;
       contentType?: string;
       required: boolean;
+      xmlRoot?: string;
     };
     responseContentType?: string;
     responseTransformer?: string;
