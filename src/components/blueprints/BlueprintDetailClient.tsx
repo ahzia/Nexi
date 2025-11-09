@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { BlueprintCanvas } from "@/components/canvas/BlueprintCanvas";
+import { Modal } from "@/components/ui/modal";
 import { Tabs } from "@/components/ui/tabs";
 import type { ToolBlueprintDetail } from "@/lib/data/tool-blueprints";
 import type { ToolDraft } from "@/lib/types/tooling";
@@ -48,6 +49,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
   const [requireKey, setRequireKey] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"canvas" | "tools" | "spec">("canvas");
   const hasPublishedInstances = blueprint.instances.length > 0;
+  const [toolModalId, setToolModalId] = useState<string | null>(null);
 
   useEffect(() => {
     setToolsState([...(blueprint.tools as CanvasTool[])]);
@@ -56,6 +58,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
     setSelectedToolId(blueprint.tools[0]?.id ?? null);
     setToolStatus("idle");
     setToolError(null);
+    setToolModalId(null);
   }, [blueprint]);
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
   };
 
-  const handleAddTool = () => {
+  const handleAddTool = (options?: { focus?: "tools" | "canvas" }) => {
     const id = `custom_${Date.now()}`;
     const newTool: CanvasTool = {
       id,
@@ -151,7 +154,14 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
     });
     setToolStatus("idle");
     setToolError(null);
-    setActiveTab("tools");
+    setActiveTab(options?.focus ?? "tools");
+    setToolModalId(id);
+  };
+
+  const handleToolDoubleClick = (tool: CanvasTool) => {
+    setSelectedToolId(tool.id);
+    setToolModalId(tool.id);
+    setActiveTab("canvas");
   };
 
   const handleSaveTool = async () => {
@@ -201,6 +211,9 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
 
       setToolsState(updatedTools);
       setToolStatus("saved");
+      if (toolModalId) {
+        setToolModalId(null);
+      }
       router.refresh();
       setTimeout(() => setToolStatus("idle"), 1800);
     } catch (error) {
@@ -265,6 +278,112 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
   };
 
   const specWarnings = blueprint.warnings ?? [];
+
+  const renderToolForm = (options?: { showCancel?: boolean; onCancel?: () => void; submitLabel?: string }) => {
+    if (!selectedTool || !editForm) {
+      return (
+        <p className="text-sm text-[var(--ui-text-secondary)]">
+          Select a node to inspect and edit its configuration.
+        </p>
+      );
+    }
+
+    return (
+      <form
+        className="grid gap-3 text-sm text-[var(--ui-text-secondary)]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleSaveTool();
+        }}
+      >
+        <div className="grid gap-2 md:grid-cols-2 md:gap-4">
+          <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
+            Name
+            <input
+              value={editForm.name}
+              onChange={(event) => handleEditFieldChange("name", event.target.value)}
+              className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
+            Summary
+            <input
+              value={editForm.summary}
+              onChange={(event) => handleEditFieldChange("summary", event.target.value)}
+              className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
+            />
+          </label>
+        </div>
+        <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
+          Description
+          <textarea
+            value={editForm.description}
+            onChange={(event) => handleEditFieldChange("description", event.target.value)}
+            className="min-h-[96px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
+          Tags (comma separated)
+          <input
+            value={editForm.tags}
+            onChange={(event) => handleEditFieldChange("tags", event.target.value)}
+            className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
+          Input schema (JSON)
+          <textarea
+            value={editForm.inputSchema}
+            onChange={(event) => handleEditFieldChange("inputSchema", event.target.value)}
+            className="min-h-[200px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 font-mono text-xs text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
+            spellCheck={false}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
+          Output schema (JSON, optional)
+          <textarea
+            value={editForm.outputSchema}
+            onChange={(event) => handleEditFieldChange("outputSchema", event.target.value)}
+            className="min-h-[160px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 font-mono text-xs text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
+            spellCheck={false}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
+          Security requirements (JSON array, optional)
+          <textarea
+            value={editForm.security}
+            onChange={(event) => handleEditFieldChange("security", event.target.value)}
+            className="min-h-[120px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 font-mono text-xs text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
+            spellCheck={false}
+          />
+        </label>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-xl bg-[var(--ui-button-primary)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-inverse)] shadow-[var(--ui-shadow-sm)] transition hover:-translate-y-0.5 hover:bg-[var(--ui-button-primary-hover)] disabled:opacity-60"
+            disabled={toolStatus === "saving"}
+          >
+            {toolStatus === "saving" ? "Saving…" : options?.submitLabel ?? "Save tool"}
+          </button>
+          {options?.showCancel ? (
+            <button
+              type="button"
+              onClick={options.onCancel}
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-secondary)] transition hover:-translate-y-0.5 hover:text-[var(--ui-text-primary)]"
+            >
+              Cancel
+            </button>
+          ) : null}
+          {toolStatus === "saved" ? (
+            <span className="text-xs text-[var(--color-success-500)]">Saved.</span>
+          ) : null}
+          {toolStatus === "error" && toolError ? (
+            <span className="text-xs text-[var(--color-error-500)]">{toolError}</span>
+          ) : null}
+        </div>
+      </form>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -431,37 +550,32 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
       />
 
       {activeTab === "canvas" ? (
-        <div className="grid gap-6 rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-6 shadow-[var(--ui-shadow-md)] lg:grid-cols-[1fr_0.8fr]">
-          <div className="flex flex-col gap-4 text-sm text-[var(--ui-text-secondary)]">
-            <h3 className="text-lg font-semibold text-[var(--ui-text-primary)]">Execution flow</h3>
-            <p>
-              The canvas mirrors the end-to-end journey: the agent triggers <code>tools/call</code>, Nexi validates and
-              hydrates the request, invokes the upstream API, then streams data back to the agent. Double-click tool nodes
-              to dive into their configuration.
-            </p>
-            <ul className="space-y-3">
-              <li className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/30 p-3">
-                <p className="font-semibold text-[var(--ui-text-primary)]">Agent Request</p>
-                <p className="text-xs">
-                  ChatGPT/Claude issues a structured MCP call with the arguments gathered from the conversation.
-                </p>
-              </li>
-              <li className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/30 p-3">
-                <p className="font-semibold text-[var(--ui-text-primary)]">MCP Runtime</p>
-                <p className="text-xs">
-                  Nexi validates the schema, injects secrets, and prepares HTTP calls using the steps you define here.
-                </p>
-              </li>
-              <li className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/30 p-3">
-                <p className="font-semibold text-[var(--ui-text-primary)]">Client API & Response</p>
-                <p className="text-xs">
-                  The upstream hotel API is called, responses are normalized, and structured content is returned to the agent.
-                </p>
-              </li>
-            </ul>
+        <section className="flex flex-col gap-4 rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-6 shadow-[var(--ui-shadow-md)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-[var(--ui-text-primary)]">Workflow canvas</h3>
+              <p className="text-sm text-[var(--ui-text-secondary)]">
+                Drag nodes to refine the story. Double-click a tool to configure it. Validation and transformation steps are
+                colour-coded for quick scanning.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleAddTool({ focus: "canvas" })}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-secondary)] transition hover:-translate-y-0.5 hover:bg-[var(--ui-surface-muted)]/60"
+              >
+                + Add HTTP step
+              </button>
+            </div>
           </div>
-          <BlueprintCanvas tools={toolsState} selectedToolId={selectedToolId} onSelectTool={setSelectedToolId} />
-        </div>
+          <BlueprintCanvas
+            tools={toolsState}
+            selectedToolId={selectedToolId}
+            onSelectTool={setSelectedToolId}
+            onToolDoubleClick={handleToolDoubleClick}
+          />
+        </section>
       ) : null}
 
       {activeTab === "tools" ? (
@@ -476,7 +590,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
               </div>
               <button
                 type="button"
-                onClick={handleAddTool}
+                onClick={() => handleAddTool()}
                 className="inline-flex items-center gap-2 rounded-xl border border-[var(--ui-border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-secondary)] transition hover:-translate-y-0.5 hover:bg-[var(--ui-surface-muted)]/60"
               >
                 + Add step
@@ -519,96 +633,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
                 </span>
               ) : null}
             </header>
-            {selectedTool && editForm ? (
-              <form
-                className="grid gap-3 text-sm text-[var(--ui-text-secondary)]"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  handleSaveTool();
-                }}
-              >
-                <div className="grid gap-2 md:grid-cols-2 md:gap-4">
-                  <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
-                    Name
-                    <input
-                      value={editForm.name}
-                      onChange={(event) => handleEditFieldChange("name", event.target.value)}
-                      className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
-                    Summary
-                    <input
-                      value={editForm.summary}
-                      onChange={(event) => handleEditFieldChange("summary", event.target.value)}
-                      className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
-                    />
-                  </label>
-                </div>
-                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
-                  Description
-                  <textarea
-                    value={editForm.description}
-                    onChange={(event) => handleEditFieldChange("description", event.target.value)}
-                    className="min-h-[96px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
-                  Tags (comma separated)
-                  <input
-                    value={editForm.tags}
-                    onChange={(event) => handleEditFieldChange("tags", event.target.value)}
-                    className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 text-sm text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
-                  Input schema (JSON)
-                  <textarea
-                    value={editForm.inputSchema}
-                    onChange={(event) => handleEditFieldChange("inputSchema", event.target.value)}
-                    className="min-h-[200px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 font-mono text-xs text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
-                    spellCheck={false}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
-                  Output schema (JSON, optional)
-                  <textarea
-                    value={editForm.outputSchema}
-                    onChange={(event) => handleEditFieldChange("outputSchema", event.target.value)}
-                    className="min-h-[160px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 font-mono text-xs text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
-                    spellCheck={false}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">
-                  Security requirements (JSON array, optional)
-                  <textarea
-                    value={editForm.security}
-                    onChange={(event) => handleEditFieldChange("security", event.target.value)}
-                    className="min-h-[120px] rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/60 px-3 py-2 font-mono text-xs text-[var(--ui-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-400)] focus-visible:ring-offset-2"
-                    spellCheck={false}
-                  />
-                </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="submit"
-                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--ui-button-primary)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-inverse)] shadow-[var(--ui-shadow-sm)] transition hover:-translate-y-0.5 hover:bg-[var(--ui-button-primary-hover)] disabled:opacity-60"
-                    disabled={toolStatus === "saving"}
-                  >
-                    {toolStatus === "saving" ? "Saving…" : "Save tool"}
-                  </button>
-                  {toolStatus === "saved" ? (
-                    <span className="text-xs text-[var(--color-success-500)]">Saved.</span>
-                  ) : null}
-                  {toolStatus === "error" && toolError ? (
-                    <span className="text-xs text-[var(--color-error-500)]">{toolError}</span>
-                  ) : null}
-                </div>
-              </form>
-            ) : (
-              <p className="text-sm text-[var(--ui-text-secondary)]">
-                Select a node to inspect and edit its configuration.
-              </p>
-            )}
+            {renderToolForm()}
           </div>
         </div>
       ) : null}
@@ -645,6 +670,20 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
             )}
           </div>
         </div>
+      ) : null}
+      {toolModalId && selectedTool ? (
+        <Modal
+          open
+          onClose={() => setToolModalId(null)}
+          title={`Edit ${selectedTool.name}`}
+          description="Update schema, summaries, and metadata. Changes are saved across the blueprint."
+        >
+          {renderToolForm({
+            showCancel: true,
+            onCancel: () => setToolModalId(null),
+            submitLabel: "Save changes",
+          })}
+        </Modal>
       ) : null}
     </div>
   );

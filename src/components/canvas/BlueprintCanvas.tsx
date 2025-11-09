@@ -1,7 +1,14 @@
-"use client";
+ "use client";
 
 import { useMemo } from "react";
-import ReactFlow, { Background, Controls, MiniMap, type Edge, type Node, type NodeTypes } from "reactflow";
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  type Edge,
+  type Node,
+  type NodeTypes,
+} from "reactflow";
 import "reactflow/dist/style.css";
 
 import type { ToolDraft } from "@/lib/types/tooling";
@@ -17,6 +24,7 @@ interface BlueprintCanvasProps {
   tools: CanvasTool[];
   selectedToolId?: string | null;
   onSelectTool?: (toolId: string | null) => void;
+  onToolDoubleClick?: (tool: CanvasTool) => void;
 }
 
 const nodeTypes: NodeTypes = {
@@ -38,7 +46,8 @@ function buildGraph(
   onSelectTool?: (toolId: string) => void,
 ): GraphResult {
   const baseY = 80;
-  const spacingY = 200;
+  const spacingY = 220;
+
   const nodes: Node[] = [
     {
       id: "agent-request",
@@ -47,33 +56,37 @@ function buildGraph(
       data: {
         title: "Agent Request",
         subtitle: "LLM issues tools.call",
+        kind: "agent-request",
       },
     },
     {
       id: "mcp-runtime",
       type: "phaseNode",
-      position: { x: -20, y: baseY },
+      position: { x: 20, y: baseY },
       data: {
         title: "Nexi Runtime",
-        subtitle: "Validate & sign request",
+        subtitle: "Validate & enrich",
+        kind: "runtime",
       },
     },
     {
       id: "upstream-api",
       type: "phaseNode",
-      position: { x: 680, y: baseY },
+      position: { x: 840, y: baseY },
       data: {
         title: "Client API",
-        subtitle: "CapCorn endpoints",
+        subtitle: "External service",
+        kind: "client",
       },
     },
     {
       id: "agent-response",
       type: "phaseNode",
-      position: { x: 940, y: baseY },
+      position: { x: 1140, y: baseY },
       data: {
         title: "Agent Response",
-        subtitle: "Data returned to user",
+        subtitle: "Structured output",
+        kind: "agent-response",
       },
     },
   ];
@@ -85,7 +98,7 @@ function buildGraph(
       target: "mcp-runtime",
       type: "smoothstep",
       animated: true,
-      style: { stroke: "var(--color-primary-500)" },
+      style: { stroke: "var(--ui-border-strong)" },
     },
   ];
 
@@ -94,9 +107,8 @@ function buildGraph(
   tools.forEach((tool, index) => {
     const y = baseY + index * spacingY;
     const httpMeta = tool.httpConfig;
-    const requiresValidation = Boolean(
-      (httpMeta?.parameters ?? []).some((param) => param.required) || httpMeta?.requestBody?.required,
-    );
+    const requiresValidation =
+      (httpMeta?.parameters ?? []).some((param) => param.required) || Boolean(httpMeta?.requestBody?.required);
     const validationNodeId = `${tool.id}-validation`;
     const transformNodeId = `${tool.id}-transform`;
     const requestTransformNodeId = `${tool.id}-request-transform`;
@@ -105,7 +117,7 @@ function buildGraph(
       nodes.push({
         id: validationNodeId,
         type: "validationNode",
-        position: { x: 140, y },
+        position: { x: 220, y },
         data: {
           requiredParams: (httpMeta?.parameters ?? []).filter((param) => param.required).map((param) => ({
             name: param.name,
@@ -120,20 +132,18 @@ function buildGraph(
         target: validationNodeId,
         type: "smoothstep",
         animated: true,
-        style: { stroke: "var(--color-primary-500)" },
+        style: { stroke: "var(--ui-border-strong)" },
       });
       previousStageId = validationNodeId;
     }
 
-    const needsRequestTransform = Boolean(
-      httpMeta?.requestBody?.contentType && httpMeta.requestBody.contentType.includes("xml"),
-    );
+    const needsRequestTransform = Boolean(httpMeta?.requestBody?.contentType?.includes("xml"));
 
     if (needsRequestTransform) {
       nodes.push({
         id: requestTransformNodeId,
         type: "requestTransformNode",
-        position: { x: 260, y },
+        position: { x: 420, y },
         data: {
           contentType: httpMeta?.requestBody?.contentType,
         },
@@ -145,7 +155,7 @@ function buildGraph(
         target: requestTransformNodeId,
         type: "smoothstep",
         animated: true,
-        style: { stroke: "var(--color-primary-500)" },
+        style: { stroke: "var(--ui-border-strong)" },
       });
 
       previousStageId = requestTransformNodeId;
@@ -154,7 +164,7 @@ function buildGraph(
     nodes.push({
       id: tool.id,
       type: "toolNode",
-      position: { x: 360, y },
+      position: { x: 620, y },
       data: {
         tool,
         selected: tool.id === selectedToolId,
@@ -173,16 +183,18 @@ function buildGraph(
 
     previousStageId = tool.id;
 
-    const hasTransformer = Boolean(
-      httpMeta?.responseTransformer || httpMeta?.responseContentType?.includes("xml"),
-    );
+    const hasTransformer =
+      Boolean(httpMeta?.responseTransformer) || Boolean(httpMeta?.responseContentType?.includes("xml"));
+
     if (hasTransformer) {
       nodes.push({
         id: transformNodeId,
         type: "transformNode",
-        position: { x: 560, y },
+        position: { x: 820, y },
         data: {
-          transformer: httpMeta?.responseTransformer ?? (httpMeta?.responseContentType?.includes("xml") ? "xml-to-json" : undefined),
+          transformer:
+            httpMeta?.responseTransformer ??
+            (httpMeta?.responseContentType?.includes("xml") ? "xml-to-json" : undefined),
           responseType: httpMeta?.responseContentType,
         },
       });
@@ -206,7 +218,7 @@ function buildGraph(
     target: "upstream-api",
     type: "smoothstep",
     animated: true,
-    style: { stroke: "var(--color-primary-500)" },
+    style: { stroke: "var(--color-success-500)" },
   });
 
   edges.push({
@@ -221,26 +233,36 @@ function buildGraph(
   return { nodes, edges };
 }
 
-export function BlueprintCanvas({ tools, selectedToolId, onSelectTool }: BlueprintCanvasProps) {
+export function BlueprintCanvas({ tools, selectedToolId, onSelectTool, onToolDoubleClick }: BlueprintCanvasProps) {
   const { nodes, edges } = useMemo(
     () => buildGraph(tools, selectedToolId ?? null, onSelectTool),
     [tools, selectedToolId, onSelectTool],
   );
 
   return (
-    <div className="h-[520px] w-full overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/40">
+    <div className="h-[600px] w-full overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/40">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
-        nodesDraggable={false}
+        fitViewOptions={{ padding: 0.2 }}
+        nodesDraggable
         nodesConnectable={false}
         minZoom={0.4}
         maxZoom={1.4}
+        panOnDrag
         className="bg-none text-[var(--ui-text-primary)]"
         onNodeClick={(_, node) => onSelectTool?.(node.id)}
         onPaneClick={() => onSelectTool?.(null)}
+        onNodeDoubleClick={(_, node) => {
+          if (node.type === "toolNode" && onToolDoubleClick) {
+            const tool = (node.data as { tool?: CanvasTool })?.tool;
+            if (tool) {
+              onToolDoubleClick(tool);
+            }
+          }
+        }}
       >
         <MiniMap pannable zoomable className="!bg-[var(--ui-surface)]" />
         <Controls className="!bg-[var(--ui-surface)]" />
