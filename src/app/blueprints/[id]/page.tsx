@@ -19,7 +19,7 @@ export default async function BlueprintPage({ params }: BlueprintPageProps) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-14 text-[var(--ui-text-primary)]">
+    <div className="flex w-full flex-col gap-10 py-12 text-[var(--ui-text-primary)]">
       <header className="flex flex-col gap-3">
         <Link
           href="/"

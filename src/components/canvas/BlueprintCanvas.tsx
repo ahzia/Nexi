@@ -45,14 +45,25 @@ function buildGraph(
   selectedToolId: string | null | undefined,
   onSelectTool?: (toolId: string) => void,
 ): GraphResult {
-  const baseY = 80;
-  const spacingY = 220;
+  const baseY = 120;
+  const spacingY = 300;
+
+  const columns = {
+    agent: -200,
+    runtime: 60,
+    validation: 400,
+    prepare: 760,
+    tool: 1140,
+    transform: 1520,
+    upstream: 1920,
+    response: 2240,
+  };
 
   const nodes: Node[] = [
     {
       id: "agent-request",
       type: "phaseNode",
-      position: { x: -260, y: baseY },
+      position: { x: columns.agent, y: baseY },
       data: {
         title: "Agent Request",
         subtitle: "LLM issues tools.call",
@@ -62,7 +73,7 @@ function buildGraph(
     {
       id: "mcp-runtime",
       type: "phaseNode",
-      position: { x: 20, y: baseY },
+      position: { x: columns.runtime, y: baseY },
       data: {
         title: "Nexi Runtime",
         subtitle: "Validate & enrich",
@@ -72,7 +83,7 @@ function buildGraph(
     {
       id: "upstream-api",
       type: "phaseNode",
-      position: { x: 840, y: baseY },
+      position: { x: columns.upstream, y: baseY },
       data: {
         title: "Client API",
         subtitle: "External service",
@@ -82,7 +93,7 @@ function buildGraph(
     {
       id: "agent-response",
       type: "phaseNode",
-      position: { x: 1140, y: baseY },
+      position: { x: columns.response, y: baseY },
       data: {
         title: "Agent Response",
         subtitle: "Structured output",
@@ -105,7 +116,9 @@ function buildGraph(
   let previousStageId = "mcp-runtime";
 
   tools.forEach((tool, index) => {
-    const y = baseY + index * spacingY;
+    const rowIndex = index % 3;
+    const laneOffset = Math.floor(index / 3) * 80;
+    const y = baseY + rowIndex * spacingY + laneOffset;
     const httpMeta = tool.httpConfig;
     const requiresValidation =
       (httpMeta?.parameters ?? []).some((param) => param.required) || Boolean(httpMeta?.requestBody?.required);
@@ -117,7 +130,7 @@ function buildGraph(
       nodes.push({
         id: validationNodeId,
         type: "validationNode",
-        position: { x: 220, y },
+        position: { x: columns.validation, y },
         data: {
           requiredParams: (httpMeta?.parameters ?? []).filter((param) => param.required).map((param) => ({
             name: param.name,
@@ -143,7 +156,7 @@ function buildGraph(
       nodes.push({
         id: requestTransformNodeId,
         type: "requestTransformNode",
-        position: { x: 420, y },
+        position: { x: columns.prepare, y },
         data: {
           contentType: httpMeta?.requestBody?.contentType,
         },
@@ -164,7 +177,7 @@ function buildGraph(
     nodes.push({
       id: tool.id,
       type: "toolNode",
-      position: { x: 620, y },
+      position: { x: columns.tool, y },
       data: {
         tool,
         selected: tool.id === selectedToolId,
@@ -190,7 +203,7 @@ function buildGraph(
       nodes.push({
         id: transformNodeId,
         type: "transformNode",
-        position: { x: 820, y },
+        position: { x: columns.transform, y },
         data: {
           transformer:
             httpMeta?.responseTransformer ??
@@ -240,7 +253,7 @@ export function BlueprintCanvas({ tools, selectedToolId, onSelectTool, onToolDou
   );
 
   return (
-    <div className="h-[600px] w-full overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/40">
+    <div className="min-h-[420px] w-full overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/40 sm:h-[500px] lg:h-[620px]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -264,7 +277,7 @@ export function BlueprintCanvas({ tools, selectedToolId, onSelectTool, onToolDou
           }
         }}
       >
-        <MiniMap pannable zoomable className="!bg-[var(--ui-surface)]" />
+        <MiniMap pannable zoomable className="hidden !bg-[var(--ui-surface)] lg:block" />
         <Controls className="!bg-[var(--ui-surface)]" />
         <Background gap={24} color="var(--ui-border)" />
       </ReactFlow>

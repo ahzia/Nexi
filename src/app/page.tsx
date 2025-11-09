@@ -4,9 +4,9 @@ import { GenerateBlueprintLauncher } from "@/components/home/generate-blueprint-
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--ui-background)] text-[var(--ui-text-primary)]">
+    <>
       <header className="sticky top-0 z-20 border-b border-[var(--ui-border)] bg-[var(--ui-surface)]/80 backdrop-blur supports-[backdrop-filter]:bg-[var(--ui-surface)]/70">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+        <div className="flex w-full items-center justify-between py-4">
           <div className="flex flex-1 items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-primary-500)] to-[var(--color-primary-700)] text-white shadow-lg">
               <span className="text-lg font-semibold">NX</span>
@@ -22,7 +22,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 px-6 pb-20 pt-14">
+      <main className="relative flex w-full flex-1 flex-col gap-12 pb-20 pt-12">
         <section className="grid gap-8 rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-8 shadow-[var(--ui-shadow-lg)] lg:grid-cols-[1.2fr_0.8fr]">
           <div className="flex flex-col gap-6">
             <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/50 px-4 py-1 text-xs font-medium uppercase tracking-[0.28em] text-[var(--color-primary-600)]">
@@ -76,6 +76,6 @@ export default function Home() {
 
         <BlueprintGallery />
       </main>
-    </div>
+    </>
   );
 }

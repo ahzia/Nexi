@@ -20,7 +20,7 @@ export function ToolNode({ data }: NodeProps<ToolNodeData>) {
 
   return (
     <div
-      className={`group relative flex w-full cursor-grab flex-col gap-3 rounded-2xl border px-4 py-3 text-left shadow-md transition ${
+      className={`group relative flex w-full max-w-[360px] cursor-grab flex-col gap-3 rounded-2xl border px-4 py-3 text-left shadow-md transition ${
         selected
           ? "border-[var(--color-primary-500)] bg-[var(--ui-surface)]"
           : "border-[var(--color-primary-500)]/60 bg-[var(--color-primary-100)]/20 hover:border-[var(--color-primary-500)]"
@@ -34,7 +34,7 @@ export function ToolNode({ data }: NodeProps<ToolNodeData>) {
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-primary-500)]/15 text-[var(--color-primary-600)]">
           <Bot className="h-4 w-4" />
           </span>
-          <div className="flex flex-col">
+          <div className="flex max-w-[220px] flex-col">
             <span className="truncate text-sm font-semibold text-[var(--ui-text-primary)]">{tool.name}</span>
             <span className="truncate text-xs text-[var(--ui-text-secondary)]">{tool.path}</span>
           </div>
@@ -66,7 +66,9 @@ export function ToolNode({ data }: NodeProps<ToolNodeData>) {
           <span className="text-[10px] text-[var(--ui-text-secondary)]">+{tool.tags.length - 2}</span>
         ) : null}
       </div>
-      <p className="line-clamp-2 text-xs text-[var(--ui-text-secondary)]">{tool.description}</p>
+      <p className="line-clamp-4 whitespace-normal break-words text-xs leading-relaxed text-[var(--ui-text-secondary)]">
+        {tool.description}
+      </p>
     </div>
   );
 }

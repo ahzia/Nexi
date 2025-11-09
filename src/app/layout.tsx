@@ -32,7 +32,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <div className="flex min-h-screen flex-col">
+            <main className="flex-1">
+              <div className="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-10 xl:px-12 2xl:px-16">{children}</div>
+            </main>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );
