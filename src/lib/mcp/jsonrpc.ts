@@ -22,11 +22,19 @@ export function jsonRpcResponse<T>(payload: JsonRpcResponse<T>, status = 200) {
   return addCorsHeaders(NextResponse.json(payload, { status }));
 }
 
-export function addCorsHeaders(response: NextResponse) {
+export function addCorsHeaders<T extends Response>(response: T): T {
   response.headers.set("Access-Control-Allow-Origin", "*");
-  response.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, MCP-Proxy-Auth-Token");
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, MCP-Proxy-Auth-Token",
+  );
   response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Credentials", "false");
   return response;
+}
+
+export function emptyCorsResponse(status = 200) {
+  return addCorsHeaders(new NextResponse(null, { status }));
 }
 
 export function makeResult<T>(id: string | number | null, result: T): JsonRpcSuccess<T> {
