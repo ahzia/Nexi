@@ -40,6 +40,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishResult, setPublishResult] = useState<{
     instanceId: string;
+    slug: string;
     apiKey: string | null;
     endpoint: string;
     discovery: unknown;
@@ -50,6 +51,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
   const [activeTab, setActiveTab] = useState<"canvas" | "tools" | "spec">("canvas");
   const hasPublishedInstances = blueprint.instances.length > 0;
   const [toolModalId, setToolModalId] = useState<string | null>(null);
+  const [origin, setOrigin] = useState<string>("");
 
   useEffect(() => {
     setToolsState([...(blueprint.tools as CanvasTool[])]);
@@ -62,24 +64,36 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
   }, [blueprint]);
 
   useEffect(() => {
-    if (blueprint.instances.length > 0) {
-      const latest = blueprint.instances[0];
-      setPublishResult({
-        instanceId: latest.id,
-        apiKey: null,
-        endpoint: latest.baseUrl,
-        discovery: latest.discovery,
-        capabilities: latest.capabilities,
-        requiresKey: latest.requiresKey,
-      });
-      setPublishStatus("done");
-      setRequireKey(latest.requiresKey);
-    } else {
+    if (!blueprint.instances.length) {
       setPublishResult(null);
       setPublishStatus("idle");
       setRequireKey(false);
+      return;
     }
-  }, [blueprint.instances]);
+
+    const latest = blueprint.instances[0];
+    if (publishResult && publishResult.slug === latest.slug) {
+      return;
+    }
+
+    setPublishResult({
+      instanceId: latest.id,
+      slug: latest.slug,
+      apiKey: null,
+      endpoint: latest.baseUrl,
+      discovery: latest.discovery,
+      capabilities: latest.capabilities,
+      requiresKey: latest.requiresKey,
+    });
+    setPublishStatus("done");
+    setRequireKey(latest.requiresKey);
+  }, [blueprint.instances, publishResult]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   const selectedTool = useMemo<CanvasTool | null>(() => {
     if (!selectedToolId) return null;
@@ -263,6 +277,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
       }
       setPublishResult({
         instanceId: json.instance.id,
+        slug: json.instance.slug,
         apiKey: json.apiKey ?? null,
         endpoint: json.endpoint,
         discovery: json.discovery,
@@ -488,6 +503,12 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
                 {JSON.stringify(publishResult.capabilities, null, 2)}
               </pre>
             </details>
+            <ChatActions
+              slug={publishResult.slug}
+              requiresKey={publishResult.requiresKey}
+              apiKey={publishResult.apiKey ?? undefined}
+              origin={origin}
+            />
           </div>
         ) : null}
       </section>
@@ -533,6 +554,16 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
                     <p>Updated: {new Date(instance.updatedAt).toLocaleString()}</p>
                   </div>
                 </div>
+                <ChatActions
+                  slug={instance.slug}
+                  requiresKey={instance.requiresKey}
+                  apiKey={
+                    publishResult?.slug === instance.slug && publishResult.apiKey
+                      ? publishResult.apiKey
+                      : undefined
+                  }
+                  origin={origin}
+                />
               </li>
             ))}
           </ul>
@@ -685,6 +716,77 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
           })}
         </Modal>
       ) : null}
+    </div>
+  );
+}
+
+function ChatActions({
+  slug,
+  requiresKey,
+  apiKey,
+  origin,
+}: {
+  slug: string;
+  requiresKey: boolean;
+  apiKey?: string;
+  origin: string;
+}) {
+  const chatPath = `/chat/${slug}${requiresKey && apiKey ? `?token=${apiKey}` : ""}`;
+  const absoluteUrl = origin ? `${origin}${chatPath}` : chatPath;
+  const embedSnippet = `<iframe src="${absoluteUrl}" style="width:100%;height:560px;border:1px solid rgba(148,163,184,0.35);border-radius:24px;" allow="clipboard-write"></iframe>`;
+  const disabled = requiresKey && !apiKey;
+
+  const handleOpen = () => {
+    if (disabled) return;
+    if (typeof window !== "undefined") {
+      window.open(chatPath, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleCopy = async () => {
+    if (disabled || !origin || typeof navigator === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(embedSnippet);
+    } catch (error) {
+      console.error("Failed to copy embed snippet", error);
+    }
+  };
+
+  return (
+    <div className="col-span-2 flex flex-col gap-3 rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/30 p-3 text-xs text-[var(--ui-text-secondary)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[var(--ui-text-primary)]">Chat agent & embed</p>
+          {disabled ? (
+            <p>
+              Provide an API key to launch the chat or append <code>?token=YOUR_KEY</code> to the embed URL.
+            </p>
+          ) : (
+            <p>Share a live chat agent backed by this MCP instance or embed it on any site.</p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleOpen}
+            disabled={disabled}
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-primary-500)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-primary-600)] shadow-[var(--ui-shadow-sm)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-500)]/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Open chat agent
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={disabled || !origin}
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--ui-border)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-secondary)] transition hover:-translate-y-0.5 hover:bg-[var(--ui-surface-muted)]/60 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Copy embed snippet
+          </button>
+        </div>
+      </div>
+      <pre className="max-h-40 overflow-auto rounded-xl border border-dashed border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 text-[10px] text-[var(--ui-text-secondary)]">
+        {embedSnippet}
+      </pre>
     </div>
   );
 }

@@ -33,7 +33,7 @@ export default function Home() {
             </h1>
             <p className="max-w-2xl text-pretty text-lg text-[var(--ui-text-secondary)]">
               Drop an OpenAPI spec or paste raw documentation—Nexi will normalize it, scaffold tools, and host an MCP
-              endpoint ready for ChatGPT, Claude, and other agents.
+              endpoint ready for your favorite chat agents.
             </p>
             <div className="flex flex-wrap items-center gap-4">
               <GenerateBlueprintLauncher />
