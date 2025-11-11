@@ -25,6 +25,11 @@ interface ChatPayloadMessage {
   content: ChatPayloadContent[];
 }
 
+const makeId = () =>
+  typeof globalThis !== "undefined" && typeof globalThis.crypto?.randomUUID === "function"
+    ? globalThis.crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+
 export function ChatWindow({ slug, instanceName, apiKey, mode = "full" }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<ChatPayloadMessage[]>([]);
@@ -54,7 +59,7 @@ export function ChatWindow({ slug, instanceName, apiKey, mode = "full" }: ChatWi
 
         setMessages((prev) => {
           const welcome: ChatMessage = {
-            id: crypto.randomUUID(),
+            id: makeId(),
             role: "assistant",
             text: `You're connected to the "${data.displayName ?? slug}" chat agent.`,
           };
@@ -63,7 +68,7 @@ export function ChatWindow({ slug, instanceName, apiKey, mode = "full" }: ChatWi
             return [
               ...prev,
               {
-                id: crypto.randomUUID(),
+                id: makeId(),
                 role: "assistant",
                 text: "The previous session expired. Starting a new chat.",
               },
@@ -108,7 +113,7 @@ export function ChatWindow({ slug, instanceName, apiKey, mode = "full" }: ChatWi
 
       const userMessage: ChatMessage | null = enqueue
         ? {
-            id: crypto.randomUUID(),
+            id: makeId(),
             role: "user",
             text: trimmed,
           }
@@ -155,12 +160,12 @@ export function ChatWindow({ slug, instanceName, apiKey, mode = "full" }: ChatWi
         setMessages((prev) => [
           ...prev,
           ...data.toolOutputs.map((tool: { content: string }) => ({
-            id: crypto.randomUUID(),
+            id: makeId(),
             role: "tool" as const,
             text: tool.content,
           })),
           {
-            id: crypto.randomUUID(),
+            id: makeId(),
             role: "assistant",
             text: data.reply,
           },

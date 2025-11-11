@@ -2,12 +2,29 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { BlueprintCanvas } from "@/components/canvas/BlueprintCanvas";
 import { Modal } from "@/components/ui/modal";
 import { Tabs } from "@/components/ui/tabs";
 import type { ToolBlueprintDetail } from "@/lib/data/tool-blueprints";
 import type { ToolDraft } from "@/lib/types/tooling";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  CircleDot,
+  Database,
+  Download,
+  ExternalLink,
+  FileCode,
+  Layers,
+  ShieldCheck,
+  Sparkles,
+  Wand2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 
 type CanvasTool = Omit<ToolDraft, "rawOperation">;
 
@@ -48,7 +65,7 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
     requiresKey: boolean;
   } | null>(null);
   const [requireKey, setRequireKey] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<"canvas" | "tools" | "spec">("canvas");
+  const [activeTab, setActiveTab] = useState<"canvas" | "tools" | "spec" | "activity">("canvas");
   const hasPublishedInstances = blueprint.instances.length > 0;
   const [toolModalId, setToolModalId] = useState<string | null>(null);
   const [origin, setOrigin] = useState<string>("");
@@ -293,6 +310,48 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
   };
 
   const specWarnings = blueprint.warnings ?? [];
+  const publishedCount = blueprint.instances.length;
+  const warningCount = specWarnings.length;
+  const timelineSteps = [
+    {
+      label: "Ingested",
+      description: "Docs processed",
+      complete: true,
+    },
+    {
+      label: "Canvas",
+      description: `${toolsState.length} nodes configured`,
+      complete: toolsState.length > 0,
+    },
+    {
+      label: "Published",
+      description: publishedCount ? `${publishedCount} live endpoints` : "Awaiting publish",
+      complete: publishedCount > 0,
+    },
+  ];
+  const timelineIcons = [Sparkles, Layers, ShieldCheck];
+  const createdAt = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(blueprint.created_at),
+  );
+  const statusLabel = publishedCount ? "Published" : "Draft";
+  const statusBadge = publishedCount
+    ? "border-[var(--color-success-500)]/60 bg-[var(--color-success-500)]/12 text-[var(--color-success-600)]"
+    : "border-[var(--color-primary-500)]/60 bg-[var(--color-primary-500)]/12 text-[var(--color-primary-600)]";
+  const latestInstance = blueprint.instances[0] ?? null;
+  const activityEvents = [
+    ...blueprint.instances.slice(0, 3).map((instance) => ({
+      label: `Published ${instance.slug}`,
+      description: new Date(instance.createdAt).toLocaleString(),
+      tone: "success" as const,
+    })),
+    warningCount
+      ? {
+          label: `Warnings detected (${warningCount})`,
+          description: "Review specification notes",
+          tone: "warning" as const,
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; description: string; tone: "success" | "warning" }>;
 
   const renderToolForm = (options?: { showCancel?: boolean; onCancel?: () => void; submitLabel?: string }) => {
     if (!selectedTool || !editForm) {
@@ -512,63 +571,6 @@ export function BlueprintDetailClient({ blueprint }: BlueprintDetailClientProps)
           </div>
         ) : null}
       </section>
-
-      {blueprint.instances.length ? (
-        <section className="flex flex-col gap-4 rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-6 shadow-[var(--ui-shadow-md)]">
-          <header className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-[var(--ui-text-primary)]">Published instances</h3>
-            <p className="text-xs text-[var(--ui-text-secondary)]">
-              Each publish creates a new MCP slug. Reuse an existing endpoint or republish to mint another.
-            </p>
-          </header>
-          <ul className="flex flex-col gap-3">
-            {blueprint.instances.map((instance) => (
-              <li
-                key={instance.id}
-                className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)]/30 p-4 text-sm text-[var(--ui-text-secondary)]"
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--ui-text-primary)]">
-                      {instance.displayName ?? instance.slug}
-                    </p>
-                    <p className="text-xs text-[var(--ui-text-secondary)]">Slug: {instance.slug}</p>
-                  </div>
-                  <span
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${instance.requiresKey ? "border-[var(--color-warning-500)]/60 bg-[var(--color-warning-500)]/10 text-[var(--color-warning-600)]" : "border-[var(--color-success-500)]/60 bg-[var(--color-success-500)]/10 text-[var(--color-success-600)]"}`}
-                  >
-                    {instance.requiresKey ? "API key required" : "Public"}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--ui-text-secondary)]">Endpoint</p>
-                    <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-2 py-1 text-[10px] text-[var(--ui-text-secondary)]">
-                      {instance.baseUrl}
-                    </pre>
-                  </div>
-                  <div className="space-y-1 text-xs">
-                    <p className="font-semibold text-[var(--ui-text-secondary)]">Status & metadata</p>
-                    <p>Status: {instance.status}</p>
-                    <p>Created: {new Date(instance.createdAt).toLocaleString()}</p>
-                    <p>Updated: {new Date(instance.updatedAt).toLocaleString()}</p>
-                  </div>
-                </div>
-                <ChatActions
-                  slug={instance.slug}
-                  requiresKey={instance.requiresKey}
-                  apiKey={
-                    publishResult?.slug === instance.slug && publishResult.apiKey
-                      ? publishResult.apiKey
-                      : undefined
-                  }
-                  origin={origin}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       <Tabs
         value={activeTab}
