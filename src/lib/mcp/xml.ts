@@ -16,6 +16,7 @@ interface XmlSchema {
   properties?: Record<string, XmlSchema>;
   items?: XmlSchema | XmlSchema[];
   additionalProperties?: boolean | XmlSchema;
+  xmlAttributes?: Record<string, unknown>;
 }
 
 export function serializeXmlBody({ value, schema, rootName }: SerializeXmlOptions): string {
@@ -81,6 +82,14 @@ function prepareXmlValue(value: unknown, schema?: XmlSchema): unknown {
       } else {
         const elementName = xmlMeta?.name ?? key;
         result[elementName] = prepareXmlValue(childValue, childSchema);
+      }
+    }
+
+    const attributes = schema?.xmlAttributes ?? {};
+    for (const [attributeName, attributeValue] of Object.entries(attributes)) {
+      const key = `@_${attributeName}`;
+      if (result[key] === undefined) {
+        result[key] = attributeValue;
       }
     }
 

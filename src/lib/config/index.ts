@@ -33,6 +33,10 @@ export const config = {
     apiKey: readEnv("OPENAI_API_KEY"),
     model: readEnv("OPENAI_MCP_MODEL")?.trim() || "gpt-4.1-mini",
   },
+  anthropic: {
+    apiKey: readEnv("ANTHROPIC_API_KEY"),
+    model: readEnv("ANTHROPIC_MODEL")?.trim() || "claude-3-5-sonnet-latest",
+  },
   supabase: {
     url: coalesce(readEnv("SUPABASE_URL"), readEnv("NEXT_PUBLIC_SUPABASE_URL")),
     serviceRoleKey: coalesce(readEnv("SUPABASE_SERVICE_ROLE_KEY"), readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY")),
